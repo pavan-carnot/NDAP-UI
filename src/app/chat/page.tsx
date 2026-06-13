@@ -596,6 +596,17 @@ export default function ChatPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setDropdownOpen(false);
+    };
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, []);
+
   useEffect(() => {
     getHealth().then(setHealth).catch(() => null);
     getRecentQueries(10).then(setRecentQueries).catch(() => null);
@@ -618,7 +629,7 @@ export default function ChatPage() {
       if (!sessionId) setSessionId(sid);
 
       try {
-        const result = await askQuery(q.trim(), sid);
+        const result = await askQuery(q.trim(), sid, "fast", selectedAgent);
         setTurns((prev) => [
           ...prev,
           { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
@@ -631,7 +642,7 @@ export default function ChatPage() {
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, sessionId]
+    [loading, sessionId, selectedAgent]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -847,7 +858,70 @@ export default function ChatPage() {
             className="w-full resize-none bg-transparent px-4 pt-4 pb-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50"
           />
           <div className="flex items-center justify-between px-4 pb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDropdownOpen(!dropdownOpen);
+                }}
+                disabled={loading}
+                className="flex items-center justify-center w-8 h-8 rounded-lg border border-ndap-border text-gray-500 hover:text-ndap-blue hover:border-ndap-blue hover:bg-ndap-sky transition-all font-bold text-lg disabled:opacity-40"
+                title="Select Agent"
+              >
+                +
+              </button>
+
+              {dropdownOpen && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-full left-0 mb-2 w-60 bg-white border border-ndap-border rounded-xl shadow-lg z-50 p-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAgent("draft_email");
+                      setDropdownOpen(false);
+                    }}
+                    className="w-full text-left rounded-lg px-3 py-2 hover:bg-ndap-sky transition-colors flex items-center gap-2.5"
+                  >
+                    <span className="text-base">✉️</span>
+                    <div className="flex flex-col text-left">
+                      <span className="text-xs font-semibold text-ndap-navy">Emailing Agent</span>
+                      <span className="text-[10px] text-gray-400">Drafts professional emails</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAgent("generate_document");
+                      setDropdownOpen(false);
+                    }}
+                    className="w-full text-left rounded-lg px-3 py-2 hover:bg-ndap-sky transition-colors flex items-center gap-2.5 mt-0.5"
+                  >
+                    <span className="text-base">📄</span>
+                    <div className="flex flex-col text-left">
+                      <span className="text-xs font-semibold text-ndap-navy">Doc Gen Agent</span>
+                      <span className="text-[10px] text-gray-400">Creates report documents</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {selectedAgent && (
+                <span className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-2.5 py-1 text-xs text-ndap-blue font-medium anim-in">
+                  <span>{selectedAgent === "draft_email" ? "✉️ Emailing Agent" : "📄 Doc Gen Agent"}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAgent(null)}
+                    disabled={loading}
+                    className="text-[10px] text-gray-400 hover:text-ndap-navy font-bold ml-1.5 disabled:opacity-40"
+                  >
+                    ✕
+                  </button>
+                </span>
+              )}
+
               <span className="text-[11px] text-gray-400">
                 {sessionId ? `Session: ${sessionId}` : "New session"}
               </span>

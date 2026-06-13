@@ -24,13 +24,14 @@ export async function getHealth(): Promise<HealthStatus> {
 export async function runQuery(
   query: string,
   sessionId: string | null,
-  model: string
+  model: string,
+  agent?: string | null
 ): Promise<QueryResult> {
   return json<QueryResult>(
     await fetch(`${BASE}/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, session_id: sessionId, model }),
+      body: JSON.stringify({ query, session_id: sessionId, model, agent }),
     })
   );
 }
@@ -97,13 +98,14 @@ export async function clearStaleCache(): Promise<{ deleted: number }> {
 export async function askQuery(
   message: string,
   sessionId: string | null,
-  mode = "fast"
+  mode = "fast",
+  agent?: string | null
 ): Promise<QueryResult> {
   const raw = await json<{ answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"] }>(
     await fetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sessionId, mode }),
+      body: JSON.stringify({ message, sessionId, mode, agent }),
     })
   );
   // Normalise v1 shape (metadata) → existing QueryResult shape (meta)
