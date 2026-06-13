@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import clsx from "clsx";
 import {
-  askQuery,
+  runQuery,
   getHealth,
   getRecentQueries,
   resetSession,
@@ -629,7 +629,7 @@ export default function ChatPage() {
       if (!sessionId) setSessionId(sid);
 
       try {
-        const result = await askQuery(q.trim(), sid, "fast", selectedAgent);
+        const result = await runQuery(q.trim(), sid, "fast", selectedAgent);
         setTurns((prev) => [
           ...prev,
           { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },

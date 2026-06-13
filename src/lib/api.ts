@@ -65,7 +65,7 @@ export async function uploadDocument(
 }
 
 export async function getRecentQueries(limit = 10): Promise<RecentQuery[]> {
-  return json<RecentQuery[]>(await fetch(`${BASE}/queries/recent?limit=${limit}`));
+  return json<RecentQuery[]>(await fetch(`${BASE}/queries/recent?limit=${limit}`, { headers: { "X-API-Key": API_KEY } }));
 }
 
 export async function getTableData(
