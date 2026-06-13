@@ -117,12 +117,13 @@ export default function MapPage() {
       id: "states-fill",
       type: "fill" as const,
       paint: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         "fill-color": [
           "case",
           ["==", ["get", "value"], null],
           "#f3f4f6",
           ["interpolate", ["linear"], ["get", "value"], 0, currentPalette.light, maxValue, currentPalette.dark],
-        ],
+        ] as any,
         "fill-opacity": 0.8,
         "fill-outline-color": "#ffffff",
       },

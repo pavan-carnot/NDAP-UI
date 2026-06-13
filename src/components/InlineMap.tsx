@@ -49,7 +49,10 @@ export default function InlineMap({
     async function fetchData() {
       setLoading(true);
       try {
-        const data = await getMapData(datasetId, focusStates);
+        // If focusStates is only "India" (or empty after filtering), fetch all states
+        const statesForApi = focusStates
+          ?.filter(s => s.toLowerCase().trim() !== "india");
+        const data = await getMapData(datasetId, statesForApi?.length ? statesForApi : undefined);
         setMapData(data);
       } catch (err) {
         console.error("Failed to load map data:", err);
@@ -58,7 +61,7 @@ export default function InlineMap({
       }
     }
     fetchData();
-  }, [isOpen, datasetId]);
+  }, [isOpen, datasetId, focusStates]);
 
   const { enrichedGeoJson, maxValue } = useMemo(() => {
     if (!geoJsonData) return { enrichedGeoJson: null, maxValue: 1 };
@@ -112,12 +115,13 @@ export default function InlineMap({
     id: "states-fill",
     type: "fill" as const,
     paint: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       "fill-color": [
         "case",
         ["==", ["get", "value"], null],
         "#f3f4f6",
         ["interpolate", ["linear"], ["get", "value"], 0, "#fee2e2", maxValue, "#991b1b"],
-      ],
+      ] as any,
       "fill-opacity": 0.8,
       "fill-outline-color": "#ffffff",
     },

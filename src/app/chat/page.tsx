@@ -15,49 +15,65 @@ import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 
 /* ── Citation parsing ─────────────────────────────────────────────── */
-function parseCitations(answer: string, chunks: ChatTurn["result"]["chunks"]): Citation[] {
+// Regex-based citation parsing is commented out; citations are derived
+// directly from retrieved chunks instead.
+
+// function parseCitations(answer: string, chunks: ChatTurn["result"]["chunks"]): Citation[] {
+//   const seen = new Set<string>();
+//   const out: Citation[] = [];
+//
+//   // New format: [filename.pdf, Page 12]
+//   const newFmt = /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Page[s]?\s+([^\]]+)\]/gi;
+//   let m: RegExpExecArray | null;
+//   while ((m = newFmt.exec(answer)) !== null) {
+//     const key = `${m[1].trim()}::${m[3].trim()}`;
+//     if (!seen.has(key)) {
+//       seen.add(key);
+//       out.push({ source: m[1].trim(), page: m[3].trim(), quote: "" });
+//     }
+//   }
+//
+//   // Old format: [Source: file, Page/Sheet: X, Quote: "..."]
+//   const oldFmt = /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g;
+//   while ((m = oldFmt.exec(answer)) !== null) {
+//     const key = `${m[1].trim()}::${m[2].trim()}`;
+//     if (!seen.has(key)) {
+//       seen.add(key);
+//       out.push({ source: m[1].trim(), page: m[2].trim(), quote: m[3]?.trim() ?? "" });
+//     }
+//   }
+//
+//   // Fallback to chunk sources
+//   if (out.length === 0) {
+//     for (const c of chunks) {
+//       const key = `${c.source}::${c.page}`;
+//       if (!seen.has(key)) {
+//         seen.add(key);
+//         out.push({ source: c.source, page: String(c.page), quote: "" });
+//       }
+//     }
+//   }
+//   return out;
+// }
+
+// function stripCitationMarkers(text: string): string {
+//   return text
+//     .replace(/\[Source:[^\]]*\]/g, "")
+//     .replace(/\[[^\]]+\.(pdf|xlsx|xls|csv)[^\]]*\]/gi, "")
+//     .trim();
+// }
+
+function parseCitationsFromChunks(chunks: ChatTurn["result"]["chunks"]): Citation[] {
   const seen = new Set<string>();
   const out: Citation[] = [];
-
-  // New format: [filename.pdf, Page 12]
-  const newFmt = /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Page[s]?\s+([^\]]+)\]/gi;
-  let m: RegExpExecArray | null;
-  while ((m = newFmt.exec(answer)) !== null) {
-    const key = `${m[1].trim()}::${m[3].trim()}`;
+  for (const c of chunks) {
+    const key = `${c.source}::${c.page}`;
     if (!seen.has(key)) {
       seen.add(key);
-      out.push({ source: m[1].trim(), page: m[3].trim(), quote: "" });
-    }
-  }
-
-  // Old format: [Source: file, Page/Sheet: X, Quote: "..."]
-  const oldFmt = /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g;
-  while ((m = oldFmt.exec(answer)) !== null) {
-    const key = `${m[1].trim()}::${m[2].trim()}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push({ source: m[1].trim(), page: m[2].trim(), quote: m[3]?.trim() ?? "" });
-    }
-  }
-
-  // Fallback to chunk sources
-  if (out.length === 0) {
-    for (const c of chunks) {
-      const key = `${c.source}::${c.page}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({ source: c.source, page: String(c.page), quote: "" });
-      }
+      out.push({ source: c.source, page: String(c.page), quote: "" });
     }
   }
   return out;
-}
-
-function stripCitationMarkers(text: string): string {
-  return text
-    .replace(/\[Source:[^\]]*\]/g, "")
-    .replace(/\[[^\]]+\.(pdf|xlsx|xls|csv)[^\]]*\]/gi, "")
-    .trim();
 }
 
 /* ── Detect generated doc link in answer ─────────────────────────── */
@@ -469,8 +485,8 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
 function MessageCard({ turn }: { turn: ChatTurn }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
-  const citations = parseCitations(answer, chunks);
-  const cleanAnswer = stripCitationMarkers(answer);
+  const citations = parseCitationsFromChunks(chunks);
+  const cleanAnswer = answer;
 
   return (
     <div className="anim-in space-y-2">

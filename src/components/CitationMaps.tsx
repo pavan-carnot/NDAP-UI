@@ -8,6 +8,39 @@ interface Citation {
   source: string;
 }
 
+function bigramSet(s: string): Set<string> {
+  const bg = new Set<string>();
+  for (let i = 0; i < s.length - 1; i++) bg.add(s.slice(i, i + 2));
+  return bg;
+}
+
+function metricSimilarity(metric: string, intent: string): number {
+  const m = metric.toLowerCase().replace(/[_\-]/g, " ");
+  const i = intent.toLowerCase().replace(/[_\-]/g, " ");
+
+  if (m === i) return 1000;
+  if (m.includes(i) || i.includes(m)) return 100;
+
+  // Word-level: score per matching word (weighted by length)
+  const intentWords = i.split(/\s+/).filter(w => w.length > 2);
+  const metricWords = m.split(/\s+/);
+  let wordScore = 0;
+  for (const iw of intentWords) {
+    if (metricWords.some(mw => mw.includes(iw) || iw.includes(mw))) {
+      wordScore += iw.length > 3 ? 2 : 1;
+    }
+  }
+  if (wordScore > 0) return wordScore;
+
+  // Bigram Jaccard as last resort
+  const mBg = bigramSet(m);
+  const iBg = bigramSet(i);
+  const intersection = [...iBg].filter(bg => mBg.has(bg)).length;
+  const union = new Set([...mBg, ...iBg]).size;
+  const jaccard = union > 0 ? intersection / union : 0;
+  return jaccard >= 0.3 ? jaccard : 0;
+}
+
 export default function CitationMaps({
   citations,
   focusStates,
@@ -34,28 +67,21 @@ export default function CitationMaps({
       }
 
       const metsArr = Array.from(allMetrics);
+      if (metsArr.length === 0) { setMetrics([]); return; }
 
-      if (metsArr.length > 0) {
-        let bestMatch = metsArr[0];
-        if (intentMetric) {
-          const intentWords = intentMetric.toLowerCase().split(/[\s_]+/);
-          let maxScore = -1;
-          for (const m of metsArr) {
-            const mLower = m.toLowerCase();
-            let score = 0;
-            for (const iw of intentWords) {
-              if (iw.length > 3 && mLower.includes(iw)) score++;
-              else if (mLower.split(/[\s_]+/).includes(iw)) score++;
-            }
-            if (score > maxScore) {
-              maxScore = score;
-              bestMatch = m;
-            }
-          }
+      if (intentMetric) {
+        // Score every metric; only accept best if score > 0
+        let bestScore = 0;
+        let bestMetric: string | null = null;
+        for (const m of metsArr) {
+          const score = metricSimilarity(m, intentMetric);
+          if (score > bestScore) { bestScore = score; bestMetric = m; }
         }
-        setMetrics([{ sourceFile: "visual_timeseries", metric: bestMatch }]);
+        // No meaningful match → hide map rather than show random metric
+        setMetrics(bestMetric ? [{ sourceFile: "visual_timeseries", metric: bestMetric }] : []);
       } else {
-        setMetrics([]);
+        // No intent provided — show first available metric
+        setMetrics([{ sourceFile: "visual_timeseries", metric: metsArr[0] }]);
       }
     }
     if (citations.length > 0) load();
