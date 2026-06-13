@@ -793,11 +793,11 @@ export default function ChatPage() {
             <div className="space-y-1.5 text-xs text-gray-700">
               <div className="flex items-center gap-2">
                 <Dot ok={health.postgres} />
-                <span>{health.postgres ? "PostgreSQL Connected" : "PostgreSQL Offline"}</span>
+                <span>{health.postgres ? "Structured Data Connected" : "Structured Data Offline"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Dot ok={health.elasticsearch} />
-                <span>{health.elasticsearch ? "Elasticsearch Online" : "Elasticsearch Offline"}</span>
+                <span>{health.elasticsearch ? "Unstructured Data Online" : "Unstructured Data Offline"}</span>
               </div>
             </div>
             <div className="mt-2.5 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-[11px] text-gray-600">

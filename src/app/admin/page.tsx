@@ -605,11 +605,11 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center gap-4 bg-white border border-ndap-border rounded-2xl px-5 py-3.5 mb-6 shadow-sm">
           <div className="flex items-center gap-2 text-sm">
             <span className={clsx("w-2 h-2 rounded-full", health.postgres ? "bg-ndap-success" : "bg-ndap-error")} />
-            <span className="text-gray-700">PostgreSQL</span>
+            <span className="text-gray-700">Structured Data</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className={clsx("w-2 h-2 rounded-full", health.elasticsearch ? "bg-ndap-success" : "bg-ndap-error")} />
-            <span className="text-gray-700">Elasticsearch</span>
+            <span className="text-gray-700">Unstructured Data</span>
           </div>
           <div className="ml-auto flex gap-4 text-xs text-gray-500">
             <span><b className="text-ndap-navy">{health.stats.total_docs ?? "–"}</b> docs</span>
