@@ -784,7 +784,7 @@ export default function ChatPage() {
 
       {/* ── Left sidebar ─────────────────────────────────────────── */}
       {sidebarOpen && (
-      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto bg-white border border-ndap-border rounded-2xl p-3 shadow-sm">
+      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto bg-white border-2 border-gray-300 rounded-2xl p-3 shadow-[0_4px_24px_rgba(0,0,0,0.10)]">
 
         <button
           onClick={startNew}
