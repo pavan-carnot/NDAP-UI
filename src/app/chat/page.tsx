@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
+const PdfPanel = lazy(() => import("@/components/PdfPanel"));
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import clsx from "clsx";
@@ -14,50 +15,51 @@ import {
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 
-/* ── Citation parsing ─────────────────────────────────────────────── */
-function parseCitations(answer: string, chunks: ChatTurn["result"]["chunks"]): Citation[] {
-  const seen = new Set<string>();
-  const out: Citation[] = [];
+/* ── Inline citation processing ───────────────────────────────────── */
+interface InlineCit { source: string; page: string; quote: string; }
+
+function buildInlineCitations(
+  rawAnswer: string,
+  chunks: ChatTurn["result"]["chunks"]
+): { processedText: string; citations: InlineCit[] } {
+  const citations: InlineCit[] = [];
+  const keyToIdx = new Map<string, number>();
+
+  function getIdx(source: string, page: string, quote = ""): number {
+    const key = `${source}::${page}`;
+    if (!keyToIdx.has(key)) {
+      keyToIdx.set(key, citations.length);
+      citations.push({ source, page, quote });
+    }
+    return keyToIdx.get(key)!;
+  }
 
   // New format: [filename.pdf, Page 12]
-  const newFmt = /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Page[s]?\s+([^\]]+)\]/gi;
-  let m: RegExpExecArray | null;
-  while ((m = newFmt.exec(answer)) !== null) {
-    const key = `${m[1].trim()}::${m[3].trim()}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push({ source: m[1].trim(), page: m[3].trim(), quote: "" });
+  let result = rawAnswer.replace(
+    /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]/gi,
+    (_, filename, _ext, pageStr) => {
+      const idx = getIdx(filename.trim(), pageStr.trim());
+      return `[${idx + 1}](#cite-${idx})`;
     }
-  }
+  );
 
   // Old format: [Source: file, Page/Sheet: X, Quote: "..."]
-  const oldFmt = /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g;
-  while ((m = oldFmt.exec(answer)) !== null) {
-    const key = `${m[1].trim()}::${m[2].trim()}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push({ source: m[1].trim(), page: m[2].trim(), quote: m[3]?.trim() ?? "" });
+  result = result.replace(
+    /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g,
+    (_, filename, pageStr, quote) => {
+      const idx = getIdx(filename.trim(), pageStr.trim(), quote?.trim() ?? "");
+      return `[${idx + 1}](#cite-${idx})`;
     }
-  }
+  );
 
-  // Fallback to chunk sources
-  if (out.length === 0) {
+  // Fallback: use chunk sources if nothing matched
+  if (citations.length === 0) {
     for (const c of chunks) {
-      const key = `${c.source}::${c.page}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({ source: c.source, page: String(c.page), quote: "" });
-      }
+      getIdx(c.source, String(c.page));
     }
   }
-  return out;
-}
 
-function stripCitationMarkers(text: string): string {
-  return text
-    .replace(/\[Source:[^\]]*\]/g, "")
-    .replace(/\[[^\]]+\.(pdf|xlsx|xls|csv)[^\]]*\]/gi, "")
-    .trim();
+  return { processedText: result, citations };
 }
 
 /* ── Detect generated doc link in answer ─────────────────────────── */
@@ -191,9 +193,25 @@ function LiveTrace({ query }: { query: string }) {
 }
 
 /* ── Citation chip ────────────────────────────────────────────────── */
-function CitationChip({ cit }: { cit: Citation }) {
+function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => void }) {
   const isPdf = cit.source.toLowerCase().endsWith(".pdf");
   const label = isPdf ? `p.${cit.page}` : `sheet ${cit.page}`;
+
+  if (isPdf && onOpenPdf) {
+    return (
+      <button
+        onClick={onOpenPdf}
+        className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
+      >
+        <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z"/>
+        </svg>
+        <span className="max-w-[160px] truncate">{cit.source}</span>
+        <span className="text-[10px] opacity-70">{label}</span>
+      </button>
+    );
+  }
+
   return (
     <a
       href={`/static/${encodeURIComponent(cit.source)}${isPdf ? `#page=${cit.page}` : ""}`}
@@ -465,12 +483,15 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
   );
 }
 
+/* ── PDF target type ──────────────────────────────────────────────── */
+interface PdfTarget { url: string; page: number; filename: string; }
+
+
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn }: { turn: ChatTurn }) {
+function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
-  const citations = parseCitations(answer, chunks);
-  const cleanAnswer = stripCitationMarkers(answer);
+  const { processedText, citations } = buildInlineCitations(answer, chunks);
 
   return (
     <div className="anim-in space-y-2">
@@ -501,24 +522,42 @@ function MessageCard({ turn }: { turn: ChatTurn }) {
                 NDAP Analysis
               </span>
             </div>
-            <span className="text-[10px] text-gray-400">
-              {turn.timestamp.toLocaleTimeString()}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400">
+                {turn.timestamp.toLocaleTimeString()}
+              </span>
+            </div>
           </div>
 
           <div className="ndap-prose text-sm">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanAnswer}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children, ...props }) => {
+                  if (href?.startsWith("#cite-")) {
+                    const idx = parseInt(href.replace("#cite-", ""), 10);
+                    const cit = citations[idx];
+                    return (
+                      <button
+                        onClick={() => cit && onOpenPdf({
+                          url: `/static/${encodeURIComponent(cit.source)}`,
+                          page: parseInt(cit.page) || 1,
+                          filename: cit.source,
+                        })}
+                        title={cit ? `${cit.source} · Page ${cit.page}` : ""}
+                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1.5 mx-0.5 hover:bg-ndap-navy transition-colors cursor-pointer align-baseline leading-none"
+                      >
+                        {idx + 1}
+                      </button>
+                    );
+                  }
+                  return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                },
+              }}
+            >
+              {processedText}
+            </ReactMarkdown>
           </div>
-
-          {citations.length > 0 && (
-            <div className="mt-4 pt-3.5 border-t border-gray-100">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Sources</div>
-              <div className="flex flex-wrap gap-2">
-                {citations.map((c, i) => <CitationChip key={i} cit={c} />)}
-              </div>
-            </div>
-          )}
-          {citations.length > 0 && <CitationMaps citations={citations} />}
         </div>
       )}
 
@@ -593,6 +632,7 @@ export default function ChatPage() {
   const [recentQueries, setRecentQueries] = useState<RecentQuery[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [pdfPanel, setPdfPanel] = useState<PdfTarget | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -731,10 +771,10 @@ export default function ChatPage() {
   }, [isListening]);
 
   return (
-    <div className="flex-1 flex max-w-screen-xl mx-auto w-full px-4 py-4 gap-4 overflow-hidden min-h-0">
+    <div className="flex-1 flex w-full px-2 py-3 gap-3 overflow-hidden min-h-0">
 
       {/* ── Left sidebar ─────────────────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 gap-3 overflow-y-auto">
+      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto">
 
         <button
           onClick={startNew}
@@ -823,6 +863,20 @@ export default function ChatPage() {
         )}
       </aside>
 
+      {/* ── PDF viewer panel (middle column) ─────────────────────── */}
+      {pdfPanel && (
+        <div className="hidden lg:flex flex-col w-[360px] xl:w-[400px] flex-shrink-0">
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-gray-400">Loading viewer…</div>}>
+            <PdfPanel
+              url={pdfPanel.url}
+              page={pdfPanel.page}
+              filename={pdfPanel.filename}
+              onClose={() => setPdfPanel(null)}
+            />
+          </Suspense>
+        </div>
+      )}
+
       {/* ── Main chat column ─────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
@@ -840,7 +894,7 @@ export default function ChatPage() {
             <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
-              {turns.map((t) => <MessageCard key={t.id} turn={t} />)}
+              {turns.map((t) => <MessageCard key={t.id} turn={t} onOpenPdf={setPdfPanel} />)}
               {loading && <LiveTrace query={pendingQuery} />}
               <div ref={bottomRef} />
             </div>

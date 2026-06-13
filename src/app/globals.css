@@ -110,6 +110,13 @@ html, body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.9s linear infinite; }
 
+@keyframes pageJump {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.9); }
+  12%  { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
+  75%  { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(0.95);}
+}
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
@@ -117,3 +124,14 @@ html, body {
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 .pulse-dot-2 { animation: pulse-dot 1.4s ease-in-out 0.2s infinite; }
 .pulse-dot-3 { animation: pulse-dot 1.4s ease-in-out 0.4s infinite; }
+
+/* ── PDF page highlight ──────────────────────────────────────────────── */
+@keyframes pageHighlight {
+  0%   { box-shadow: 0 0 0 3px rgba(76,175,80,0.8), 0 0 20px rgba(76,175,80,0.5); }
+  50%  { box-shadow: 0 0 0 5px rgba(76,175,80,0.9), 0 0 30px rgba(76,175,80,0.6); }
+  100% { box-shadow: none; }
+}
+.pdf-page-highlight {
+  box-shadow: 0 0 0 3px rgba(76,175,80,0.8), 0 0 20px rgba(76,175,80,0.4);
+  animation: pageHighlight 2s ease-in-out forwards;
+}
