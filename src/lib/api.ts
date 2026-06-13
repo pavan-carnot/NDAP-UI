@@ -8,6 +8,7 @@ import type {
 } from "./types";
 
 const BASE = "/api";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -30,14 +31,14 @@ export async function runQuery(
   return json<QueryResult>(
     await fetch(`${BASE}/query`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
       body: JSON.stringify({ query, session_id: sessionId, model, agent }),
     })
   );
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  return json<Document[]>(await fetch(`${BASE}/documents`));
+  return json<Document[]>(await fetch(`${BASE}/documents`, { headers: { "X-API-Key": API_KEY } }));
 }
 
 export async function deleteDocument(
@@ -46,6 +47,7 @@ export async function deleteDocument(
   return json(
     await fetch(`${BASE}/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
+      headers: { "X-API-Key": API_KEY },
     })
   );
 }
@@ -59,7 +61,7 @@ export async function uploadDocument(
   fd.append("file", file);
   fd.append("use_vision", String(useVision));
   fd.append("use_structurer", String(useStructurer));
-  return json(await fetch(`${BASE}/documents/upload`, { method: "POST", body: fd }));
+  return json(await fetch(`${BASE}/documents/upload`, { method: "POST", headers: { "X-API-Key": API_KEY }, body: fd }));
 }
 
 export async function getRecentQueries(limit = 10): Promise<RecentQuery[]> {
