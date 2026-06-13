@@ -8,6 +8,7 @@ import clsx from "clsx";
 
 const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
+  { href: "/map",   label: "Spatial Analytics" },
   { href: "/admin", label: "Admin & Data" },
 ];
 

@@ -11,6 +11,7 @@ import {
   getRecentQueries,
   resetSession,
 } from "@/lib/api";
+import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 
 /* ── Citation parsing ─────────────────────────────────────────────── */
@@ -517,6 +518,7 @@ function MessageCard({ turn }: { turn: ChatTurn }) {
               </div>
             </div>
           )}
+          {citations.length > 0 && <CitationMaps citations={citations} />}
         </div>
       )}
 

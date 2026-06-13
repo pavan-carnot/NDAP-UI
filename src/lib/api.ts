@@ -129,3 +129,47 @@ export async function resetSession(sessionId: string): Promise<void> {
     body: JSON.stringify({ sessionId }),
   });
 }
+
+// ── Map / Spatial Analytics ────────────────────────────────────────────────
+
+export interface MapDataset {
+  id: string;
+  source_file: string;
+  metric: string;
+  description?: string;
+}
+
+export type MapDataPoint = {
+  location: string;
+  value: number;
+  unit: string;
+  time: string;
+  latitude: number;
+  longitude: number;
+};
+
+export async function getMapDatasets(): Promise<MapDataset[]> {
+  return json<MapDataset[]>(await fetch(`${BASE}/map/datasets`));
+}
+
+const mapMetricsCache = new Map<string, Promise<string[]>>();
+
+export function getMapMetrics(sourceFile: string): Promise<string[]> {
+  if (mapMetricsCache.has(sourceFile)) {
+    return mapMetricsCache.get(sourceFile)!;
+  }
+  const promise = fetch(`${BASE}/map/metrics?source_file=${encodeURIComponent(sourceFile)}`).then(res => {
+    if (!res.ok) throw new Error("Failed to fetch map metrics");
+    return res.json() as Promise<string[]>;
+  });
+  mapMetricsCache.set(sourceFile, promise);
+  return promise;
+}
+
+export async function getMapData(datasetId: string, states?: string[]): Promise<MapDataPoint[]> {
+  let url = `${BASE}/map/data?dataset_id=${encodeURIComponent(datasetId)}`;
+  if (states && states.length > 0) {
+    url += `&states=${encodeURIComponent(states.join(","))}`;
+  }
+  return json<MapDataPoint[]>(await fetch(url));
+}
