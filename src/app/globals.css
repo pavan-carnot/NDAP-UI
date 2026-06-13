@@ -126,12 +126,16 @@ html, body {
 .pulse-dot-3 { animation: pulse-dot 1.4s ease-in-out 0.4s infinite; }
 
 /* ── PDF page highlight ──────────────────────────────────────────────── */
-@keyframes pageHighlight {
-  0%   { box-shadow: 0 0 0 3px rgba(76,175,80,0.8), 0 0 20px rgba(76,175,80,0.5); }
-  50%  { box-shadow: 0 0 0 5px rgba(76,175,80,0.9), 0 0 30px rgba(76,175,80,0.6); }
-  100% { box-shadow: none; }
+@keyframes pageOverlayFade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
 }
-.pdf-page-highlight {
-  box-shadow: 0 0 0 3px rgba(76,175,80,0.8), 0 0 20px rgba(76,175,80,0.4);
-  animation: pageHighlight 2s ease-in-out forwards;
+.pdf-page-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(76, 175, 80, 0.35);
+  border: 2px solid #4CAF50;
+  animation: pageOverlayFade 7s ease-out forwards;
+  pointer-events: none;
+  z-index: 10;
 }

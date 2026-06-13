@@ -8,16 +8,20 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_BASE}/api/:path*`,
-      },
-      {
-        source: "/static/:path*",
-        destination: `${API_BASE}/static/:path*`,
-      },
-    ];
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        {
+          source: "/api/:path((?!docs/).*)*",
+          destination: `${API_BASE}/api/:path*`,
+        },
+        {
+          source: "/static/:path*",
+          destination: `${API_BASE}/static/:path*`,
+        },
+      ],
+      fallback: [],
+    };
   },
 };
 

@@ -12,7 +12,13 @@ const BASE = "/api";
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `HTTP ${res.status}`);
+    try {
+      const body = JSON.parse(text);
+      throw new Error((body.detail ?? body.message ?? text) || `HTTP ${res.status}`);
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(text || `HTTP ${res.status}`);
+      throw e;
+    }
   }
   return res.json() as Promise<T>;
 }

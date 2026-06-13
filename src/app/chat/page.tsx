@@ -192,6 +192,13 @@ function LiveTrace({ query }: { query: string }) {
   );
 }
 
+const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/static").replace(/\/$/, "");
+
+function docUrl(filename: string, page?: string | number) {
+  const base = `${DOCS_BASE}/${encodeURIComponent(filename)}`;
+  return page ? `${base}#page=${page}` : base;
+}
+
 /* ── Citation chip ────────────────────────────────────────────────── */
 function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => void }) {
   const isPdf = cit.source.toLowerCase().endsWith(".pdf");
@@ -214,7 +221,7 @@ function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => voi
 
   return (
     <a
-      href={`/static/${encodeURIComponent(cit.source)}${isPdf ? `#page=${cit.page}` : ""}`}
+      href={docUrl(cit.source, isPdf ? cit.page : undefined)}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
@@ -484,7 +491,7 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
 }
 
 /* ── PDF target type ──────────────────────────────────────────────── */
-interface PdfTarget { url: string; page: number; filename: string; }
+interface PdfTarget { url: string; page: number; filename: string; quote?: string; }
 
 
 /* ── Message card ─────────────────────────────────────────────────── */
@@ -540,7 +547,7 @@ function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTa
                     return (
                       <button
                         onClick={() => cit && onOpenPdf({
-                          url: `/static/${encodeURIComponent(cit.source)}`,
+                          url: docUrl(cit.source),
                           page: parseInt(cit.page) || 1,
                           filename: cit.source,
                         })}
@@ -885,7 +892,12 @@ export default function ChatPage() {
             <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
             </svg>
-            <span>{error}</span>
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors" aria-label="Dismiss error">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
