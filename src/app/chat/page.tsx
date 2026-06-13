@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
+import { useSidebar } from "@/lib/sidebar-context";
 
 /* ── Inline citation processing ───────────────────────────────────── */
 interface InlineCit { source: string; page: string; quote: string; }
@@ -647,6 +648,7 @@ export default function ChatPage() {
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -781,7 +783,8 @@ export default function ChatPage() {
     <div className="flex-1 flex w-full px-2 py-3 gap-3 overflow-hidden min-h-0">
 
       {/* ── Left sidebar ─────────────────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto">
+      {sidebarOpen && (
+      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto bg-white border border-ndap-border rounded-2xl p-3 shadow-sm">
 
         <button
           onClick={startNew}
@@ -869,10 +872,11 @@ export default function ChatPage() {
           </div>
         )}
       </aside>
+      )}
 
-      {/* ── PDF viewer panel (middle column) ─────────────────────── */}
+      {/* ── PDF viewer panel (40% of remaining space) ────────────── */}
       {pdfPanel && (
-        <div className="hidden lg:flex flex-col w-[360px] xl:w-[400px] flex-shrink-0">
+        <div className="hidden lg:flex flex-col min-w-0 overflow-hidden" style={{ flex: "4 1 0%" }}>
           <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-gray-400">Loading viewer…</div>}>
             <PdfPanel
               url={pdfPanel.url}
@@ -884,8 +888,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* ── Main chat column ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* ── Main chat column (60% of remaining space) ────────────── */}
+      <div className="flex flex-col min-w-0 overflow-hidden" style={{ flex: "6 1 0%" }}>
 
         {error && (
           <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-start gap-2">
@@ -906,7 +910,13 @@ export default function ChatPage() {
             <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
-              {turns.map((t) => <MessageCard key={t.id} turn={t} onOpenPdf={setPdfPanel} />)}
+              {turns.map((t) => (
+                <MessageCard
+                  key={t.id}
+                  turn={t}
+                  onOpenPdf={(target) => { setSidebarOpen(false); setPdfPanel(target); }}
+                />
+              ))}
               {loading && <LiveTrace query={pendingQuery} />}
               <div ref={bottomRef} />
             </div>

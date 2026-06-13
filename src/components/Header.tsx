@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
+import { useSidebar } from "@/lib/sidebar-context";
 
 const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
@@ -51,6 +52,7 @@ export default function Header() {
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
   const [fontSize, setFontSize]         = useState<FontSize>("normal");
   const langRef = useRef<HTMLDivElement>(null);
+  const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   useEffect(() => {
     if (fontSize === "normal") {
@@ -184,6 +186,20 @@ export default function Header() {
       {/* ── Navigation bar ────────────────────────────────────────── */}
       <div className="bg-white border-b border-ndap-border">
         <div className="max-w-screen-xl mx-auto px-4 flex items-center gap-1">
+
+          {/* Sidebar toggle — far left, only on /chat */}
+          {path.startsWith("/chat") && (
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex-shrink-0 mr-2"
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd"/>
+              </svg>
+            </button>
+          )}
+
           {NAV_LINKS.map((link) => {
             const active = path.startsWith(link.href);
             return (
