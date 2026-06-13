@@ -584,8 +584,8 @@ export default function AdminPage() {
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: "ingest",   label: "File Ingestion",   icon: "📂" },
-    { id: "elastic",  label: "Elastic Chunks",    icon: "🔍" },
-    { id: "postgres", label: "Postgres Tables",   icon: "🗃️" },
+    { id: "elastic",  label: "Chunks",    icon: "🔍" },
+    { id: "postgres", label: "Tables",   icon: "🗃️" },
     { id: "logs",     label: "Logs Viewer",       icon: "📋" },
   ];
 

@@ -649,6 +649,14 @@ export default function ChatPage() {
     inputRef.current?.focus();
   }, [sessionId]);
 
+  const startNewAndSubmit = useCallback((q: string) => {
+    if (sessionId) resetSession(sessionId).catch(() => null);
+    setTurns([]);
+    setSessionId(null);
+    setError(null);
+    submitQuery(q);
+  }, [sessionId, submitQuery]);
+
   const toggleMic = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -745,7 +753,7 @@ export default function ChatPage() {
                   return (
                     <button
                       key={rq.hash}
-                      onClick={() => submitQuery(rq.text)}
+                      onClick={() => startNewAndSubmit(rq.text)}
                       className="group w-full text-left rounded-lg px-2.5 py-2 hover:bg-ndap-sky border border-transparent hover:border-ndap-border transition-all duration-150"
                     >
                       <div className="flex items-start gap-2">
