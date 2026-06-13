@@ -4,6 +4,7 @@ import type {
   Document,
   RecentQuery,
   EsChunk,
+  Skill,
 } from "./types";
 
 const BASE = "/api";
@@ -89,4 +90,40 @@ export async function getLogContent(
 
 export async function clearStaleCache(): Promise<{ deleted: number }> {
   return json(await fetch(`${BASE}/cache/stale`, { method: "DELETE" }));
+}
+
+// ── v1 API (multi-agent workflow) ──────────────────────────────────────────
+
+export async function askQuery(
+  message: string,
+  sessionId: string | null,
+  mode = "fast"
+): Promise<QueryResult> {
+  const raw = await json<{ answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"] }>(
+    await fetch(`${BASE}/v1/queries/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, sessionId, mode }),
+    })
+  );
+  // Normalise v1 shape (metadata) → existing QueryResult shape (meta)
+  return {
+    session_id: sessionId ?? "",
+    answer: raw.answer,
+    chunks: raw.chunks,
+    context: "",
+    meta: raw.metadata,
+  };
+}
+
+export async function getSkills(): Promise<Skill[]> {
+  return json<Skill[]>(await fetch(`${BASE}/v1/skills`));
+}
+
+export async function resetSession(sessionId: string): Promise<void> {
+  await fetch(`${BASE}/v1/session/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
 }

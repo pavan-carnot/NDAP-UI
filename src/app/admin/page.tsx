@@ -269,12 +269,12 @@ function IngestTab() {
                       </div>
                     </div>
                     <StatusBadge status={doc.status} />
-                    <button
+                    {/* <button
                       onClick={() => setDeletePending(doc.filename)}
                       className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     >
                       Delete
-                    </button>
+                    </button> */}
                   </div>
                 )}
               </div>

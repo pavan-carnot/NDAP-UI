@@ -80,3 +80,10 @@ export interface EsChunk {
   chunk_subtype?: string;
   structured_data?: unknown;
 }
+
+export interface Skill {
+  skill_id: string;
+  name: string;
+  description: string;
+  relevant_for?: string[];
+}
