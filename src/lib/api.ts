@@ -173,3 +173,25 @@ export async function getMapData(datasetId: string, states?: string[]): Promise<
   }
   return json<MapDataPoint[]>(await fetch(url));
 }
+
+// ── Speech (STT / TTS) ─────────────────────────────────────────────────────
+
+export async function stt(audioBase64: string, lang: string): Promise<{ text: string }> {
+  return json<{ text: string }>(
+    await fetch(`${BASE}/stt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audio: audioBase64, lang }),
+    })
+  );
+}
+
+export async function tts(text: string, lang: string): Promise<{ audio: string; format: string }> {
+  return json<{ audio: string; format: string }>(
+    await fetch(`${BASE}/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, lang }),
+    })
+  );
+}

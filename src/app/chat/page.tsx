@@ -10,6 +10,8 @@ import {
   getHealth,
   getRecentQueries,
   resetSession,
+  stt,
+  tts,
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
@@ -481,6 +483,89 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
   );
 }
 
+/* ── Speaker (TTS) button ─────────────────────────────────────────── */
+function SpeakerButton({ text }: { text: string }) {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      playIdRef.current++;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const handleSpeak = async () => {
+    if (playing) {
+      playIdRef.current++;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      window.speechSynthesis?.cancel();
+      setPlaying(false);
+      return;
+    }
+
+    const isHindi = /[ऀ-ॿ]/.test(text);
+    setPlaying(true);
+    const currentPlayId = ++playIdRef.current;
+
+    try {
+      if (isHindi) {
+        const { audio } = await tts(text, "hi");
+        if (currentPlayId !== playIdRef.current) {
+          return;
+        }
+        const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        const el = new Audio(url);
+        audioRef.current = el;
+        el.onended = () => { setPlaying(false); URL.revokeObjectURL(url); };
+        el.onerror = () => setPlaying(false);
+        el.play();
+      } else {
+        if (!window.speechSynthesis) { setPlaying(false); return; }
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = "en-IN";
+        utt.onend = () => setPlaying(false);
+        utt.onerror = () => setPlaying(false);
+        window.speechSynthesis.speak(utt);
+      }
+    } catch {
+      setPlaying(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleSpeak}
+      title={playing ? "Stop speaking" : "Read aloud"}
+      className={clsx(
+        "w-7 h-7 rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
+        playing ? "text-ndap-blue" : "text-gray-300 hover:text-ndap-blue"
+      )}
+    >
+      {playing ? (
+        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+          <rect x="6" y="6" width="4" height="12" rx="1"/>
+          <rect x="14" y="6" width="4" height="12" rx="1"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /* ── Message card ─────────────────────────────────────────────────── */
 function MessageCard({ turn }: { turn: ChatTurn }) {
   const { answer, chunks, meta } = turn.result;
@@ -517,9 +602,12 @@ function MessageCard({ turn }: { turn: ChatTurn }) {
                 NDAP Analysis
               </span>
             </div>
-            <span className="text-[10px] text-gray-400">
-              {turn.timestamp.toLocaleTimeString()}
-            </span>
+            <div className="flex items-center gap-2">
+              <SpeakerButton text={cleanAnswer} />
+              <span className="text-[10px] text-gray-400">
+                {turn.timestamp.toLocaleTimeString()}
+              </span>
+            </div>
           </div>
 
           <div className="ndap-prose text-sm">
@@ -609,10 +697,14 @@ export default function ChatPage() {
   const [recentQueries, setRecentQueries] = useState<RecentQuery[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [lang, setLang] = useState<"en" | "hi">("en");
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -687,9 +779,70 @@ export default function ChatPage() {
   }, [sessionId, submitQuery]);
 
   const toggleMic = useCallback(() => {
+    setMicError(null);
+
+    // ── Hindi: MediaRecorder → Bhashini STT (batch) ──
+    if (lang === "hi") {
+      if (isListening) {
+        mediaRecorderRef.current?.stop();
+        // onstop handler will fire async and set isListening(false) after upload
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setMicError("Microphone not supported in this browser.");
+        return;
+      }
+
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+            ? "audio/webm;codecs=opus"
+            : "audio/webm";
+          const recorder = new MediaRecorder(stream, { mimeType });
+          audioChunksRef.current = [];
+
+          recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunksRef.current.push(e.data);
+          };
+
+          recorder.onstop = async () => {
+            stream.getTracks().forEach((t) => t.stop());
+            setIsListening(false);
+            const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+            try {
+              // Safe chunked base64 conversion that won't overflow the call stack
+              const arrayBuffer = await blob.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuffer);
+              const chunks: string[] = [];
+              for (let i = 0; i < bytes.length; i += 8192) {
+                chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+              }
+              const base64 = btoa(chunks.join(""));
+              const { text } = await stt(base64, "hi");
+              setInput((prev) => (prev ? prev.trimEnd() + " " + text : text));
+            } catch {
+              setMicError("Hindi transcription failed. Please try again.");
+            }
+          };
+
+          mediaRecorderRef.current = recorder;
+          recorder.start();
+          setIsListening(true);
+        })
+        .catch(() => {
+          setMicError("Microphone access denied. Please allow microphone access.");
+        });
+      return;
+    }
+
+    // ── English: Web Speech API (real-time) ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      setMicError("Voice input requires Chrome or Edge. Firefox is not supported.");
+      return;
+    }
 
     if (isListening) {
       recognitionRef.current?.abort();
@@ -723,6 +876,7 @@ export default function ChatPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rec.onerror = (ev: any) => {
         if (ev.error === "not-allowed") {
+          setMicError("Microphone access denied. Please allow microphone access in your browser.");
           recognitionRef.current = null;
           setIsListening(false);
         }
@@ -744,7 +898,7 @@ export default function ChatPage() {
     recognitionRef.current = rec;
     rec.start();
     setIsListening(true);
-  }, [isListening]);
+  }, [isListening, lang]);
 
   return (
     <div className="flex-1 flex max-w-screen-xl mx-auto w-full px-4 py-4 gap-4 overflow-hidden min-h-0">
@@ -947,9 +1101,27 @@ export default function ChatPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => {
+                  if (isListening) {
+                    recognitionRef.current?.abort();
+                    recognitionRef.current = null;
+                    mediaRecorderRef.current?.stop();
+                    mediaRecorderRef.current = null;
+                    setIsListening(false);
+                  }
+                  setLang((l) => (l === "en" ? "hi" : "en"));
+                }}
+                disabled={loading}
+                title={lang === "en" ? "Switch to Hindi input" : "Switch to English input"}
+                className="flex items-center justify-center w-9 h-9 rounded-xl border border-ndap-border text-gray-600 hover:text-ndap-blue hover:border-ndap-blue hover:bg-ndap-sky transition-all text-xs font-bold disabled:opacity-40"
+              >
+                {lang === "en" ? "EN" : "HI"}
+              </button>
+              <button
+                type="button"
                 onClick={toggleMic}
                 disabled={loading}
-                title={isListening ? "Stop recording" : "Voice input"}
+                title={isListening ? "Stop recording" : lang === "hi" ? "Voice input (Hindi)" : "Voice input"}
                 className={clsx(
                   "flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
                   isListening
@@ -993,7 +1165,10 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <p className="text-center text-[10px] text-gray-400 mt-2">
+        {micError && (
+          <p className="text-center text-[11px] text-red-500 mt-1">{micError}</p>
+        )}
+        <p className="text-center text-[10px] text-gray-400 mt-1">
           Responses are grounded exclusively in indexed government datasets. &nbsp;·&nbsp; NDAP GovData Intelligence POC
         </p>
       </div>
