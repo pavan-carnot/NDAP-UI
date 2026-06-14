@@ -531,18 +531,12 @@ function MessageCard({ turn }: { turn: ChatTurn }) {
 /* ── Empty state ──────────────────────────────────────────────────── */
 function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   const samples = [
-    { q: "What is the total slum population in India as per the census?",          tag: "RAG" },
-    { q: "Show dengue cases trend in Maharashtra from 2015 to 2022",               tag: "RAG" },
-    { q: "Compare TB incidence rates across Indian states",                         tag: "RAG" },
-    { q: "Draft an email summarizing the dengue situation and requesting action.",  tag: "Skill" },
-    { q: "Generate an executive summary report on India's AQI situation.",          tag: "Doc" },
+    "What is the name of the web-based, real-time patient management system used under the National Tuberculosis Elimination Programme (NTEP)?",
+    "What specific financial benefit is provided to patients under the Ni-kshay Poshan Yojna (NPY)?",
+    "What is the toll-free number for the National TB Call Centre (Ni-kshay SAMPARK)?",
+    "What diagnostic test is prioritized upfront for the diagnosis of Drug-Sensitive TB (DS-TB)?",
+    "What does India's TB report say about the MDR-TB and drug-resistant TB situation?",
   ];
-
-  const tagColors: Record<string, string> = {
-    RAG:   "bg-blue-50 text-blue-600 border-blue-200",
-    Skill: "bg-purple-50 text-purple-600 border-purple-200",
-    Doc:   "bg-amber-50 text-amber-600 border-amber-200",
-  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -562,16 +556,13 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
       <div className="w-full max-w-xl">
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Try asking</p>
         <div className="grid gap-2">
-          {samples.map(({ q, tag }) => (
+          {samples.map((q) => (
             <button
               key={q}
               onClick={() => onSample(q)}
-              className="text-left text-sm text-ndap-blue bg-white border border-ndap-border rounded-xl px-4 py-3 hover:bg-ndap-sky hover:border-ndap-blue transition-colors shadow-sm flex items-start justify-between gap-3"
+              className="text-left text-sm text-ndap-blue bg-white border border-ndap-border rounded-xl px-4 py-3 hover:bg-ndap-sky hover:border-ndap-blue transition-colors shadow-sm"
             >
-              <span>{q}</span>
-              <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 mt-0.5", tagColors[tag])}>
-                {tag}
-              </span>
+              {q}
             </button>
           ))}
         </div>
