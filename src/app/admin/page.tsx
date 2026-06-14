@@ -70,7 +70,13 @@ function IngestTab() {
       .finally(() => setLoadingDocs(false));
   };
 
-  useEffect(() => { loadDocs(); }, []);
+  useEffect(() => {
+    if (!sessionStorage.getItem("ndap_api_key")) {
+      window.location.href = "/login";
+      return;
+    }
+    loadDocs();
+  }, []);
 
   const handleUpload = async () => {
     if (!files.length) return;
