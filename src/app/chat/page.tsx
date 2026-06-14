@@ -1040,33 +1040,6 @@ export default function ChatPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                type="button"
-                onClick={toggleMic}
-                disabled={loading}
-                title={isListening ? "Stop recording" : "Voice input"}
-                className={clsx(
-                  "flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
-                  isListening
-                    ? "bg-red-500 border-red-500 text-white shadow-md"
-                    : "border-ndap-border text-gray-400 hover:text-ndap-blue hover:border-ndap-blue hover:bg-ndap-sky",
-                  "disabled:opacity-40 disabled:cursor-not-allowed"
-                )}
-              >
-                {isListening ? (
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 animate-pulse" fill="currentColor">
-                    <rect x="2" y="9" width="2" height="6" rx="1" />
-                    <rect x="6" y="6" width="2" height="12" rx="1" />
-                    <rect x="10" y="3" width="2" height="18" rx="1" />
-                    <rect x="14" y="6" width="2" height="12" rx="1" />
-                    <rect x="18" y="9" width="2" height="6" rx="1" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                  </svg>
-                )}
-              </button>
-              <button
                 onClick={() => submitQuery(input)}
                 disabled={loading || !input.trim()}
                 className="flex items-center gap-2 bg-ndap-navy text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-ndap-navyDark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
