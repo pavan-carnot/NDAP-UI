@@ -306,7 +306,7 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
             <span className="text-sm font-semibold text-ndap-navy truncate">{filename}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <DownloadButton filename={filename} />
+            <DownloadDropdown filename={filename} />
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ndap-border transition-colors text-ndap-navy"
@@ -343,27 +343,61 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
   return createPortal(modal, document.body);
 }
 
-/* ── Download Button component ──────────────────────────────────── */
-function DownloadButton({ filename }: { filename: string }) {
-  const triggerDownload = () => {
+/* ── Download Dropdown component ──────────────────────────────────── */
+function DownloadDropdown({ filename }: { filename: string }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const triggerDownload = (format: "docx" | "pdf") => {
     const fileId = filename.replace(/\.(docx|pdf|txt)$/i, "");
-    const downloadUrl = `/api/v1/documents/download?file_id=${fileId}&format=docx`;
+    const downloadUrl = `/api/v1/documents/download?file_id=${fileId}&format=${format}`;
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = `${fileId}.docx`;
+    a.download = `${fileId}.${format}`;
     a.click();
+    setOpen(false);
   };
 
   return (
-    <button
-      onClick={triggerDownload}
-      className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm"
-    >
-      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-      </svg>
-      Download DOCX
-    </button>
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm select-none"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+        Download
+        <span className="text-[9px] opacity-80">▼</span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-40 bg-white border border-amber-200 rounded-xl shadow-lg z-50 p-1">
+          <button
+            onClick={() => triggerDownload("docx")}
+            className="w-full text-left rounded-lg px-3 py-2 hover:bg-amber-50 transition-colors text-xs font-semibold text-amber-900"
+          >
+            Word Document (.docx)
+          </button>
+          <button
+            onClick={() => triggerDownload("pdf")}
+            className="w-full text-left rounded-lg px-3 py-2 hover:bg-amber-50 transition-colors text-xs font-semibold text-amber-900 mt-0.5"
+          >
+            PDF Document (.pdf)
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -393,7 +427,7 @@ function DocCard({ url, filename }: { url: string; filename: string }) {
             </svg>
             View Document
           </button>
-          <DownloadButton filename={filename} />
+          <DownloadDropdown filename={filename} />
         </div>
       </div>
       {open && <DocModal url={url} filename={filename} onClose={() => setOpen(false)} />}
