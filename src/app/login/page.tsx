@@ -30,7 +30,7 @@ export default function LoginPage() {
       }
 
       const { apiKey } = await res.json() as { apiKey: string };
-      localStorage.setItem("ndap_api_key", apiKey);
+      sessionStorage.setItem("ndap_api_key", apiKey);
       router.replace("/chat");
     } catch {
       setError("Network error. Please try again.");

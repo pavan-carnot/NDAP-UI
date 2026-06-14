@@ -11,7 +11,7 @@ const BASE = "/api";
 
 function getApiKey(): string {
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("ndap_api_key");
+    const stored = sessionStorage.getItem("ndap_api_key");
     if (stored) return stored;
   }
   return process.env.NEXT_PUBLIC_API_KEY ?? "";

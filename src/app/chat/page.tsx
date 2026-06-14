@@ -625,14 +625,14 @@ export default function ChatPage() {
       setInput("");
 
       // Generate session ID on first query and reuse for the conversation
-      const sid = sessionId ?? crypto.randomUUID().slice(0, 8);
+      const sid = sessionId ?? (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2, 10));
       if (!sessionId) setSessionId(sid);
 
       try {
         const result = await runQuery(q.trim(), sid, "fast", selectedAgent);
         setTurns((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
+          { id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2), query: q.trim(), result, timestamp: new Date() },
         ]);
         getRecentQueries(10).then(setRecentQueries).catch(() => null);
       } catch (err) {
