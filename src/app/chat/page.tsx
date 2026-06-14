@@ -15,6 +15,8 @@ import {
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
+import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 
 /* ── Inline citation processing ───────────────────────────────────── */
@@ -723,7 +725,12 @@ export default function ChatPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
+  const router = useRouter();
+  const authUser = getAuthUser();
 
+  useEffect(() => {
+    if (!isAuthenticated()) router.replace("/login");
+  }, [router]);
 
   useEffect(() => {
     const handleOutsideClick = () => {

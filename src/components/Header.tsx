@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
 import { useSidebar } from "@/lib/sidebar-context";
+import { getAuthUser, logout } from "@/lib/auth";
 
 const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
@@ -48,11 +49,13 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
 
 export default function Header() {
   const path = usePathname();
+  const router = useRouter();
   const [langOpen, setLangOpen]         = useState(false);
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
   const [fontSize, setFontSize]         = useState<FontSize>("normal");
   const langRef = useRef<HTMLDivElement>(null);
   const { sidebarOpen, setSidebarOpen } = useSidebar();
+  const authUser = getAuthUser();
 
   useEffect(() => {
     if (fontSize === "normal") {
@@ -71,6 +74,8 @@ export default function Header() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  if (path === "/login") return null;
 
   return (
     <header className="w-full sticky top-0 z-50 flex-shrink-0 shadow-lg">
@@ -218,16 +223,32 @@ export default function Header() {
             );
           })}
 
-          <div className="ml-auto hidden sm:flex items-center gap-2 py-2">
-            <div className="w-7 h-7 rounded-full bg-ndap-navy flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white">
-                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
-              </svg>
-            </div>
-            <div className="leading-tight">
-              <div className="text-xs font-semibold text-ndap-navy">Secretary</div>
-              <div className="text-[11px] text-gray-500">NITI Aayog</div>
-            </div>
+          <div className="ml-auto hidden sm:flex items-center gap-3 py-2">
+            {authUser && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-ndap-navy flex items-center justify-center flex-shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white">
+                      <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+                    </svg>
+                  </div>
+                  <div className="leading-tight">
+                    <div className="text-xs font-semibold text-ndap-navy capitalize">{authUser}</div>
+                    <div className="text-[11px] text-gray-500">NITI Aayog</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { logout(); router.replace("/login"); }}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg px-2.5 py-1.5 transition-colors"
+                  title="Sign out"
+                >
+                  <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M13 7l3 3m0 0l-3 3m3-3H8m4-7H5a2 2 0 00-2 2v10a2 2 0 002 2h7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Sign out
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
