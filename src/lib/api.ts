@@ -8,7 +8,14 @@ import type {
 } from "./types";
 
 const BASE = "/api";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
+
+function getApiKey(): string {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("ndap_api_key");
+    if (stored) return stored;
+  }
+  return process.env.NEXT_PUBLIC_API_KEY ?? "";
+}
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -31,14 +38,14 @@ export async function runQuery(
   return json<QueryResult>(
     await fetch(`${BASE}/query`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+      headers: { "Content-Type": "application/json", "X-API-Key": getApiKey() },
       body: JSON.stringify({ query, session_id: sessionId, model, agent }),
     })
   );
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  return json<Document[]>(await fetch(`${BASE}/documents`, { headers: { "X-API-Key": API_KEY } }));
+  return json<Document[]>(await fetch(`${BASE}/documents`, { headers: { "X-API-Key": getApiKey() } }));
 }
 
 export async function deleteDocument(
@@ -47,7 +54,7 @@ export async function deleteDocument(
   return json(
     await fetch(`${BASE}/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
-      headers: { "X-API-Key": API_KEY },
+      headers: { "X-API-Key": getApiKey() },
     })
   );
 }
@@ -61,11 +68,11 @@ export async function uploadDocument(
   fd.append("file", file);
   fd.append("use_vision", String(useVision));
   fd.append("use_structurer", String(useStructurer));
-  return json(await fetch(`${BASE}/documents/upload`, { method: "POST", headers: { "X-API-Key": API_KEY }, body: fd }));
+  return json(await fetch(`${BASE}/documents/upload`, { method: "POST", headers: { "X-API-Key": getApiKey() }, body: fd }));
 }
 
 export async function getRecentQueries(limit = 10): Promise<RecentQuery[]> {
-  return json<RecentQuery[]>(await fetch(`${BASE}/queries/recent?limit=${limit}`, { headers: { "X-API-Key": API_KEY } }));
+  return json<RecentQuery[]>(await fetch(`${BASE}/queries/recent?limit=${limit}`, { headers: { "X-API-Key": getApiKey() } }));
 }
 
 export async function getTableData(
