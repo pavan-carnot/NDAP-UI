@@ -90,14 +90,14 @@ function Dot({ ok }: { ok: boolean }) {
 
 /* ── Live trace during loading ────────────────────────────────────── */
 const PIPELINE_STEPS = [
-  { icon: "🛡️", label: "Safety check",         detail: "Validating query for safety…" },
+  { icon: "🛡️", label: "Safety check", detail: "Validating query for safety…" },
   { icon: "🧭", label: "Intent classification", detail: "Routing to the right agent node…" },
-  { icon: "🔍", label: "Hybrid retrieval",      detail: "Searching datasets (semantic + keyword)…" },
-  { icon: "⚙️", label: "Skill execution",       detail: "Running matched skill chain…" },
-  { icon: "🗺️", label: "Planning",              detail: "Structuring multi-step retrieval plan…" },
-  { icon: "🤖", label: "AI synthesis",          detail: "Generating grounded answer…" },
-  { icon: "✅", label: "Validation",            detail: "Checking answer quality…" },
-  { icon: "💾", label: "Caching response",      detail: "Saving answer to query cache…" },
+  { icon: "🔍", label: "Hybrid retrieval", detail: "Searching datasets (semantic + keyword)…" },
+  { icon: "⚙️", label: "Skill execution", detail: "Running matched skill chain…" },
+  { icon: "🗺️", label: "Planning", detail: "Structuring multi-step retrieval plan…" },
+  { icon: "🤖", label: "AI synthesis", detail: "Generating grounded answer…" },
+  { icon: "✅", label: "Validation", detail: "Checking answer quality…" },
+  { icon: "💾", label: "Caching response", detail: "Saving answer to query cache…" },
 ];
 
 function LiveTrace({ query }: { query: string }) {
@@ -122,8 +122,8 @@ function LiveTrace({ query }: { query: string }) {
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 spin text-ndap-blue flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="10" strokeOpacity={0.25}/>
-              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="10" strokeOpacity={0.25} />
+              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
             </svg>
             <span className="text-xs font-bold text-ndap-navy uppercase tracking-widest">
               Agent in Progress
@@ -151,7 +151,7 @@ function LiveTrace({ query }: { query: string }) {
           {doneSteps.map((step, i) => (
             <span key={i} className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 rounded-full px-2.5 py-1 text-[11px] font-medium anim-in">
               <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
               {step.icon} {step.label}
             </span>
@@ -173,8 +173,8 @@ function LiveTrace({ query }: { query: string }) {
             <p className="text-[11px] text-ndap-blue mt-0.5">{PIPELINE_STEPS[activeIdx].detail}</p>
           </div>
           <svg className="w-4 h-4 spin text-ndap-blue flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <circle cx="12" cy="12" r="10" strokeOpacity={0.2}/>
-            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+            <circle cx="12" cy="12" r="10" strokeOpacity={0.2} />
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
           </svg>
         </div>
       </div>
@@ -212,7 +212,7 @@ function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => voi
         className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
       >
         <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z"/>
+          <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z" />
         </svg>
         <span className="max-w-[160px] truncate">{cit.source}</span>
         <span className="text-[10px] opacity-70">{label}</span>
@@ -228,7 +228,7 @@ function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => voi
       className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
     >
       <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z"/>
+        <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z" />
       </svg>
       <span className="max-w-[160px] truncate">{cit.source}</span>
       <span className="text-[10px] opacity-70">{label}</span>
@@ -258,20 +258,6 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
     })();
   }, [url]);
 
-  const handleDownload = async () => {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch {
-      /* ignore */
-    }
-  };
-
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
@@ -282,21 +268,13 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
             <span className="text-sm font-semibold text-ndap-navy truncate">{filename}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
-              </svg>
-              Download
-            </button>
+            <DownloadButton filename={filename} />
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ndap-border transition-colors text-ndap-navy"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -308,8 +286,8 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
           ) : html === null ? (
             <div className="flex items-center gap-3 text-ndap-navy text-sm">
               <svg className="w-5 h-5 spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="10" strokeOpacity={0.25}/>
-                <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                <circle cx="12" cy="12" r="10" strokeOpacity={0.25} />
+                <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
               </svg>
               Loading document…
             </div>
@@ -327,6 +305,30 @@ function DocModal({ url, filename, onClose }: { url: string; filename: string; o
   return createPortal(modal, document.body);
 }
 
+/* ── Download Button component ──────────────────────────────────── */
+function DownloadButton({ filename }: { filename: string }) {
+  const triggerDownload = () => {
+    const fileId = filename.replace(/\.(docx|pdf|txt)$/i, "");
+    const downloadUrl = `/api/v1/documents/download?file_id=${fileId}&format=docx`;
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `${fileId}.docx`;
+    a.click();
+  };
+
+  return (
+    <button
+      onClick={triggerDownload}
+      className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm"
+    >
+      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+      Download DOCX
+    </button>
+  );
+}
+
 /* ── Generated document card ──────────────────────────────────────── */
 function DocCard({ url, filename }: { url: string; filename: string }) {
   const [open, setOpen] = useState(false);
@@ -339,19 +341,22 @@ function DocCard({ url, filename }: { url: string; filename: string }) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-amber-900 truncate">{filename}</div>
-            <div className="text-[11px] text-amber-700 mt-0.5">Generated document ready</div>
+            <div className="text-[11px] text-amber-700 mt-0.5">Generated report ready</div>
           </div>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex-shrink-0 flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
-          </svg>
-          View Document
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setOpen(true)}
+            className="flex-shrink-0 flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+            </svg>
+            View Document
+          </button>
+          <DownloadButton filename={filename} />
+        </div>
       </div>
       {open && <DocModal url={url} filename={filename} onClose={() => setOpen(false)} />}
     </>
@@ -377,7 +382,7 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
           className={clsx("w-3.5 h-3.5 text-ndap-blue transition-transform", open && "rotate-180")}
           viewBox="0 0 20 20" fill="currentColor"
         >
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"/>
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
         </svg>
       </button>
 
@@ -537,7 +542,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded-full bg-ndap-navy flex items-center justify-center">
                 <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9v-2h2v2zm0-4H9V7h2v2z"/>
+                  <path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9v-2h2v2zm0-4H9V7h2v2z" />
                 </svg>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
@@ -601,28 +606,28 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
 /* ── Empty state ──────────────────────────────────────────────────── */
 function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   const samples = [
-    { q: "What is the total slum population in India as per the census?",          tag: "RAG" },
-    { q: "Show dengue cases trend in Maharashtra from 2015 to 2022",               tag: "RAG" },
-    { q: "Compare TB incidence rates across Indian states",                         tag: "RAG" },
-    { q: "Draft an email summarizing the dengue situation and requesting action.",  tag: "Skill" },
-    { q: "Generate an executive summary report on India's AQI situation.",          tag: "Doc" },
+    { q: "What is the total slum population in India as per the census?", tag: "RAG" },
+    { q: "Show dengue cases trend in Maharashtra from 2015 to 2022", tag: "RAG" },
+    { q: "Compare TB incidence rates across Indian states", tag: "RAG" },
+    { q: "Draft an email summarizing the dengue situation and requesting action.", tag: "Skill" },
+    { q: "Generate an executive summary report on India's AQI situation.", tag: "Doc" },
   ];
 
   const tagColors: Record<string, string> = {
-    RAG:   "bg-blue-50 text-blue-600 border-blue-200",
+    RAG: "bg-blue-50 text-blue-600 border-blue-200",
     Skill: "bg-purple-50 text-purple-600 border-purple-200",
-    Doc:   "bg-amber-50 text-amber-600 border-amber-200",
+    Doc: "bg-amber-50 text-amber-600 border-amber-200",
   };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-20 h-20 rounded-2xl bg-ndap-sky border-2 border-ndap-border flex items-center justify-center mb-6 shadow-card">
         <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-          <rect width="48" height="48" rx="10" fill="#E3F2FD"/>
-          <rect x="8"  y="30" width="7" height="10" rx="1.5" fill="#FF9933"/>
-          <rect x="20" y="22" width="7" height="18" rx="1.5" fill="#1565C0"/>
-          <rect x="32" y="14" width="7" height="26" rx="1.5" fill="#003087"/>
-          <polyline points="8,28 20,20 32,12" stroke="#1565C0" strokeWidth="2" fill="none" strokeLinecap="round"/>
+          <rect width="48" height="48" rx="10" fill="#E3F2FD" />
+          <rect x="8" y="30" width="7" height="10" rx="1.5" fill="#FF9933" />
+          <rect x="20" y="22" width="7" height="18" rx="1.5" fill="#1565C0" />
+          <rect x="32" y="14" width="7" height="26" rx="1.5" fill="#003087" />
+          <polyline points="8,28 20,20 32,12" stroke="#1565C0" strokeWidth="2" fill="none" strokeLinecap="round" />
         </svg>
       </div>
       <h2 className="text-ndap-navy font-bold text-xl mb-2">Government Dataset Intelligence</h2>
@@ -811,7 +816,7 @@ export default function ChatPage() {
           className="w-full flex items-center justify-center gap-2 bg-ndap-navy text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-ndap-navyDark transition-colors shadow-sm"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
           </svg>
           New Analysis
         </button>
@@ -821,7 +826,7 @@ export default function ChatPage() {
           <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-ndap-border/60 flex-shrink-0">
             <div className="flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5 text-ndap-blue" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
               <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Recent Sessions</span>
             </div>
@@ -841,14 +846,14 @@ export default function ChatPage() {
                     >
                       <div className="flex items-start gap-2">
                         <svg className="w-3 h-3 mt-0.5 flex-shrink-0 text-gray-300 group-hover:text-ndap-blue transition-colors" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
+                          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                         </svg>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-gray-700 group-hover:text-ndap-navy leading-snug break-words whitespace-normal transition-colors">{rq.text}</p>
                           {ts && <p className="text-[10px] text-gray-400 mt-1">{ts}</p>}
                         </div>
                         <svg className="w-3 h-3 flex-shrink-0 text-gray-200 group-hover:text-ndap-blue opacity-0 group-hover:opacity-100 transition-all mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"/>
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
                     </button>
@@ -859,7 +864,7 @@ export default function ChatPage() {
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-10 h-10 rounded-full bg-ndap-sky border border-ndap-border flex items-center justify-center mb-2">
                   <svg className="w-5 h-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <p className="text-xs text-gray-400">No recent sessions yet.</p>
@@ -913,7 +918,7 @@ export default function ChatPage() {
         {error && (
           <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-start gap-2">
             <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             <span>{error}</span>
           </div>
@@ -947,66 +952,31 @@ export default function ChatPage() {
             <div className="flex items-center gap-2 relative">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDropdownOpen(!dropdownOpen);
-                }}
+                onClick={() => setSelectedAgent(selectedAgent === "draft_email" ? null : "draft_email")}
                 disabled={loading}
-                className="flex items-center justify-center w-8 h-8 rounded-lg border border-ndap-border text-gray-500 hover:text-ndap-blue hover:border-ndap-blue hover:bg-ndap-sky transition-all font-bold text-lg disabled:opacity-40"
-                title="Select Agent"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "draft_email"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                title="Emailing Agent"
               >
-                +
+                <span>✉️</span>
+                <span>Emailing Agent</span>
               </button>
 
-              {dropdownOpen && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute bottom-full left-0 mb-2 w-60 bg-white border border-ndap-border rounded-xl shadow-lg z-50 p-1"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAgent("draft_email");
-                      setDropdownOpen(false);
-                    }}
-                    className="w-full text-left rounded-lg px-3 py-2 hover:bg-ndap-sky transition-colors flex items-center gap-2.5"
-                  >
-                    <span className="text-base">✉️</span>
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs font-semibold text-ndap-navy">Emailing Agent</span>
-                      <span className="text-[10px] text-gray-400">Drafts professional emails</span>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAgent("generate_document");
-                      setDropdownOpen(false);
-                    }}
-                    className="w-full text-left rounded-lg px-3 py-2 hover:bg-ndap-sky transition-colors flex items-center gap-2.5 mt-0.5"
-                  >
-                    <span className="text-base">📄</span>
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs font-semibold text-ndap-navy">Doc Gen Agent</span>
-                      <span className="text-[10px] text-gray-400">Creates report documents</span>
-                    </div>
-                  </button>
-                </div>
-              )}
-
-              {selectedAgent && (
-                <span className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-2.5 py-1 text-xs text-ndap-blue font-medium anim-in">
-                  <span>{selectedAgent === "draft_email" ? "✉️ Emailing Agent" : "📄 Doc Gen Agent"}</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAgent(null)}
-                    disabled={loading}
-                    className="text-[10px] text-gray-400 hover:text-ndap-navy font-bold ml-1.5 disabled:opacity-40"
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={() => setSelectedAgent(selectedAgent === "generate_document" ? null : "generate_document")}
+                disabled={loading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "generate_document"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                title="Generate Report"
+              >
+                <span>📄</span>
+                <span>Generate Report</span>
+              </button>
 
               <span className="text-[11px] text-gray-400">
                 {sessionId ? `Session: ${sessionId}` : "New session"}
@@ -1028,15 +998,15 @@ export default function ChatPage() {
               >
                 {isListening ? (
                   <svg viewBox="0 0 24 24" className="w-4 h-4 animate-pulse" fill="currentColor">
-                    <rect x="2" y="9" width="2" height="6" rx="1"/>
-                    <rect x="6" y="6" width="2" height="12" rx="1"/>
-                    <rect x="10" y="3" width="2" height="18" rx="1"/>
-                    <rect x="14" y="6" width="2" height="12" rx="1"/>
-                    <rect x="18" y="9" width="2" height="6" rx="1"/>
+                    <rect x="2" y="9" width="2" height="6" rx="1" />
+                    <rect x="6" y="6" width="2" height="12" rx="1" />
+                    <rect x="10" y="3" width="2" height="18" rx="1" />
+                    <rect x="14" y="6" width="2" height="12" rx="1" />
+                    <rect x="18" y="9" width="2" height="6" rx="1" />
                   </svg>
                 ) : (
                   <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
                   </svg>
                 )}
               </button>
@@ -1047,12 +1017,12 @@ export default function ChatPage() {
               >
                 {loading ? (
                   <svg className="w-4 h-4 spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="12" cy="12" r="10" strokeOpacity={0.3}/>
-                    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                    <circle cx="12" cy="12" r="10" strokeOpacity={0.3} />
+                    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
                   </svg>
                 ) : (
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                   </svg>
                 )}
                 Analyse
