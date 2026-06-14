@@ -178,11 +178,7 @@ export default function MapPage() {
           >
             {datasets.map(ds => (
               <option key={ds.id} value={ds.id}>
-                {ds.description
-                  ? ds.description.length > 80
-                    ? ds.description.substring(0, 80) + "…"
-                    : ds.description
-                  : ds.metric.replace(/_/g, " ")}
+                {ds.label ?? ds.metric.replace(/_/g, " ")}
               </option>
             ))}
           </select>
@@ -237,7 +233,7 @@ export default function MapPage() {
         {selectedDataset && (
           <div className="absolute top-6 left-6 w-80 bg-white/90 backdrop-blur-sm px-6 py-4 rounded-2xl shadow-lg border border-gray-200 z-10 pointer-events-none">
             <h2 className="text-lg font-bold text-gray-900 leading-tight">
-              {selectedDataset.metric.replace(/_/g, " ")}
+              {selectedDataset.label ?? selectedDataset.metric.replace(/_/g, " ")}
             </h2>
             {selectedDataset.description && (
               <p className="text-xs text-gray-600 mt-2 leading-relaxed">{selectedDataset.description}</p>
@@ -257,29 +253,6 @@ export default function MapPage() {
             <span className="text-xs text-gray-600 ml-2">High ({maxValue.toLocaleString()})</span>
           </div>
 
-          {mapData.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-gray-200">
-              <h4 className="font-semibold text-gray-800 text-xs mb-2 uppercase tracking-wide">Quick Insights</h4>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Highest:</span>
-                <span className="font-medium text-gray-900 text-right">
-                  {mapData.reduce((p, c) => (c.value > p.value ? c : p)).location} (
-                  {mapData.reduce((p, c) => (c.value > p.value ? c : p)).value.toLocaleString()})
-                </span>
-              </div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Lowest:</span>
-                <span className="font-medium text-gray-900 text-right">
-                  {mapData.reduce((p, c) => (c.value < p.value ? c : p)).location} (
-                  {mapData.reduce((p, c) => (c.value < p.value ? c : p)).value.toLocaleString()})
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Coverage:</span>
-                <span className="font-medium text-gray-900">{mapData.length} States/UTs</span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -23,6 +23,8 @@ export interface QueryMeta {
   retrieval_query_used?: string;
   cached: boolean;
   execution_trace: string[];
+  intent_metric?: string;
+  focus_states?: string[];
 }
 
 export interface QueryResult {

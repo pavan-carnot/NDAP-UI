@@ -14,7 +14,7 @@ import {
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
-import { useSidebar } from "@/lib/sidebar-context";
+
 
 /* ── Inline citation processing ───────────────────────────────────── */
 interface InlineCit { source: string; page: string; quote: string; }
@@ -492,14 +492,28 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
 }
 
 /* ── PDF target type ──────────────────────────────────────────────── */
-interface PdfTarget { url: string; page: number; filename: string; quote?: string; }
+interface PdfTarget { url: string; page: number; filename: string; }
 
+
+/* ── Map-request detector ─────────────────────────────────────────── */
+const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|states?|chart|visual)\b|\bon (a |the )?map\b/i;
 
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
+function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
   const { processedText, citations } = buildInlineCitations(answer, chunks);
+
+  // If current message has no usable citations but is a map request, fall back to previous turn's map context
+  const isMapRequest = MAP_REQUEST_RE.test(turn.query);
+  const hasNoCitations = citations.length === 0;
+  const fallbackCitations = (isMapRequest && hasNoCitations && prevTurn)
+    ? buildInlineCitations(prevTurn.result.answer, prevTurn.result.chunks).citations
+    : null;
+  const fallbackMeta = fallbackCitations ? prevTurn!.result.meta : null;
+
+  const mapCitations = fallbackCitations ?? citations;
+  const mapMeta = fallbackMeta ?? meta;
 
   return (
     <div className="anim-in space-y-2">
@@ -545,15 +559,16 @@ function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTa
                   if (href?.startsWith("#cite-")) {
                     const idx = parseInt(href.replace("#cite-", ""), 10);
                     const cit = citations[idx];
+                    const isRealPdf = cit?.source?.toLowerCase().endsWith(".pdf");
                     return (
                       <button
-                        onClick={() => cit && onOpenPdf({
-                          url: docUrl(cit.source),
+                        onClick={() => cit && isRealPdf && onOpenPdf({
+                          url: `/static/${encodeURIComponent(cit.source)}`,
                           page: parseInt(cit.page) || 1,
                           filename: cit.source,
                         })}
                         title={cit ? `${cit.source} · Page ${cit.page}` : ""}
-                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1.5 mx-0.5 hover:bg-ndap-navy transition-colors cursor-pointer align-baseline leading-none"
+                        className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1.5 mx-0.5 hover:bg-ndap-navy transition-colors align-baseline leading-none ${isRealPdf ? "cursor-pointer" : "cursor-default"}`}
                       >
                         {idx + 1}
                       </button>
@@ -569,10 +584,11 @@ function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTa
         </div>
       )}
 
-      {/* Map visualizations */}
-      {citations.length > 0 && (
-        <CitationMaps citations={citations} intentMetric={turn.query} />
-      )}
+      <CitationMaps
+        citations={mapCitations}
+        intentMetric={mapMeta.intent_metric}
+        focusStates={mapMeta.focus_states}
+      />
 
       {/* Generated document download card */}
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}
@@ -653,7 +669,7 @@ export default function ChatPage() {
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const { sidebarOpen, setSidebarOpen } = useSidebar();
+
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -788,8 +804,7 @@ export default function ChatPage() {
     <div className="flex-1 flex w-full px-2 py-3 gap-3 overflow-hidden min-h-0">
 
       {/* ── Left sidebar ─────────────────────────────────────────── */}
-      {sidebarOpen && (
-      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto bg-white border-2 border-gray-300 rounded-2xl p-3 shadow-[0_4px_24px_rgba(0,0,0,0.10)]">
+      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto">
 
         <button
           onClick={startNew}
@@ -877,11 +892,10 @@ export default function ChatPage() {
           </div>
         )}
       </aside>
-      )}
 
-      {/* ── PDF viewer panel (40% of remaining space) ────────────── */}
+      {/* ── PDF viewer panel (middle column) ─────────────────────── */}
       {pdfPanel && (
-        <div className="hidden lg:flex flex-col min-w-0 overflow-hidden" style={{ flex: "4 1 0%" }}>
+        <div className="hidden lg:flex flex-col w-[360px] xl:w-[400px] flex-shrink-0">
           <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-gray-400">Loading viewer…</div>}>
             <PdfPanel
               url={pdfPanel.url}
@@ -893,20 +907,15 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* ── Main chat column (60% of remaining space) ────────────── */}
-      <div className="flex flex-col min-w-0 overflow-hidden" style={{ flex: "6 1 0%" }}>
+      {/* ── Main chat column ─────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {error && (
           <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-start gap-2">
             <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
             </svg>
-            <span className="flex-1">{error}</span>
-            <button onClick={() => setError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors" aria-label="Dismiss error">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <span>{error}</span>
           </div>
         )}
 
@@ -915,13 +924,7 @@ export default function ChatPage() {
             <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
-              {turns.map((t) => (
-                <MessageCard
-                  key={t.id}
-                  turn={t}
-                  onOpenPdf={(target) => { setSidebarOpen(false); setPdfPanel(target); }}
-                />
-              ))}
+              {turns.map((t, i) => <MessageCard key={t.id} turn={t} prevTurn={turns[i - 1]} onOpenPdf={setPdfPanel} />)}
               {loading && <LiveTrace query={pendingQuery} />}
               <div ref={bottomRef} />
             </div>

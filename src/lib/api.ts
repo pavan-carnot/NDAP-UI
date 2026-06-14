@@ -7,18 +7,13 @@ import type {
   Skill,
 } from "./types";
 
-const BASE = "/api";
+// Use NEXT_PUBLIC_API_URL to bypass Next.js 30s proxy timeout on long LLM queries
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    try {
-      const body = JSON.parse(text);
-      throw new Error((body.detail ?? body.message ?? text) || `HTTP ${res.status}`);
-    } catch (e) {
-      if (e instanceof SyntaxError) throw new Error(text || `HTTP ${res.status}`);
-      throw e;
-    }
+    throw new Error(text || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
@@ -142,6 +137,7 @@ export interface MapDataset {
   id: string;
   source_file: string;
   metric: string;
+  label?: string;
   description?: string;
 }
 
@@ -160,14 +156,38 @@ export async function getMapDatasets(): Promise<MapDataset[]> {
 
 const mapMetricsCache = new Map<string, Promise<string[]>>();
 
+// Concurrency queue to prevent DB connection pool exhaustion
+let _activeFetches = 0;
+const _MAX_CONCURRENT = 3;
+const _fetchQueue: (() => void)[] = [];
+
+function _acquireSlot(): Promise<void> {
+  if (_activeFetches < _MAX_CONCURRENT) {
+    _activeFetches++;
+    return Promise.resolve();
+  }
+  return new Promise<void>(resolve => { _fetchQueue.push(resolve); });
+}
+
+function _releaseSlot() {
+  const next = _fetchQueue.shift();
+  if (next) { next(); } else { _activeFetches--; }
+}
+
 export function getMapMetrics(sourceFile: string): Promise<string[]> {
   if (mapMetricsCache.has(sourceFile)) {
     return mapMetricsCache.get(sourceFile)!;
   }
-  const promise = fetch(`${BASE}/map/metrics?source_file=${encodeURIComponent(sourceFile)}`).then(res => {
-    if (!res.ok) throw new Error("Failed to fetch map metrics");
-    return res.json() as Promise<string[]>;
-  });
+  const promise = (async () => {
+    await _acquireSlot();
+    try {
+      const res = await fetch(`${BASE}/map/metrics?source_file=${encodeURIComponent(sourceFile)}`);
+      if (!res.ok) throw new Error("Failed to fetch map metrics");
+      return await res.json() as string[];
+    } finally {
+      _releaseSlot();
+    }
+  })();
   mapMetricsCache.set(sourceFile, promise);
   return promise;
 }

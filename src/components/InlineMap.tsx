@@ -18,9 +18,25 @@ export default function InlineMap({
   const [geoJsonData, setGeoJsonData] = useState<GeoJSON.FeatureCollection | null>(null);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const mapRef = React.useRef<any>(null);
 
   const datasetId = `${sourceFile}::${metric}`;
+
+  // Expand regional aliases to individual states
+  const expandedFocusStates = useMemo(() => {
+    if (!focusStates) return undefined;
+    const fStates = Array.isArray(focusStates) ? focusStates : [focusStates];
+    if (fStates.length === 0) return undefined;
+    return fStates.flatMap(s => {
+      const str = String(s).toLowerCase().trim();
+      if (str.includes("north east") || str.includes("northeast"))
+        return ["arunachal pradesh", "assam", "manipur", "meghalaya", "mizoram", "nagaland", "tripura", "sikkim"];
+      if (str.includes("south india") || str.includes("southern states"))
+        return ["andhra pradesh", "karnataka", "kerala", "tamil nadu", "telangana", "puducherry"];
+      return [str];
+    }).filter(s => s !== "india");
+  }, [focusStates]);
 
   const [hoverInfo, setHoverInfo] = useState<{
     longitude: number;
@@ -49,10 +65,8 @@ export default function InlineMap({
     async function fetchData() {
       setLoading(true);
       try {
-        // If focusStates is only "India" (or empty after filtering), fetch all states
-        const statesForApi = focusStates
-          ?.filter(s => s.toLowerCase().trim() !== "india");
-        const data = await getMapData(datasetId, statesForApi?.length ? statesForApi : undefined);
+        // Always fetch all states — frontend handles focus/grey rendering to avoid case-mismatch issues with API filter
+        const data = await getMapData(datasetId);
         setMapData(data);
       } catch (err) {
         console.error("Failed to load map data:", err);
@@ -61,31 +75,40 @@ export default function InlineMap({
       }
     }
     fetchData();
-  }, [isOpen, datasetId, focusStates]);
+  }, [isOpen, datasetId]);
 
-  const { enrichedGeoJson, maxValue } = useMemo(() => {
-    if (!geoJsonData) return { enrichedGeoJson: null, maxValue: 1 };
+  const { enrichedGeoJson, maxValue, focusBbox } = useMemo(() => {
+    if (!geoJsonData) return { enrichedGeoJson: null, maxValue: 1, focusBbox: null };
 
     let max = 0;
     const dataLookup: Record<string, MapDataPoint> = {};
+    const stateAliases: Record<string, string> = {
+      "a&n island": "andaman and nicobar islands",
+      "andaman & nicobar": "andaman and nicobar islands",
+      "andaman and nicobar": "andaman and nicobar islands",
+      "j&k": "jammu and kashmir",
+      "jammu & kashmir": "jammu and kashmir",
+      "d&n haveli": "dadra and nagar haveli",
+      "dadra and nagar haveli and daman and diu": "dadra and nagar haveli",
+      "daman & diu": "daman and diu",
+      "orissa": "odisha",
+      "uttaranchal": "uttarakhand",
+      "pondicherry": "puducherry",
+      "nct of delhi": "delhi",
+      "chattisgarh": "chhattisgarh",
+    };
     mapData.forEach(d => {
-      let normalized = d.location.toLowerCase().trim();
-      if (normalized === "a&n island") normalized = "andaman & nicobar";
-      if (normalized === "j&k") normalized = "jammu & kashmir";
-      if (normalized === "d&n haveli") normalized = "dadra and nagar haveli and daman and diu";
+      const raw = d.location.toLowerCase().trim();
+      const normalized = stateAliases[raw] ?? raw;
       dataLookup[normalized] = d;
       if (d.value > max) max = d.value;
     });
 
     const enriched = JSON.parse(JSON.stringify(geoJsonData));
+    const normalizedFocus = expandedFocusStates ?? [];
 
-    let normalizedFocus: string[] = [];
-    if (focusStates) {
-      const fStates = Array.isArray(focusStates) ? focusStates : [focusStates];
-      if (fStates.length > 0) {
-        normalizedFocus = fStates.map(s => String(s).toLowerCase().trim()).filter(s => s !== "india");
-      }
-    }
+    // Accumulate bbox of focused features for auto-zoom
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
 
     enriched.features.forEach((feature: any) => {
       const stateName = feature.properties.ST_NM;
@@ -93,10 +116,7 @@ export default function InlineMap({
 
       let isFocused = true;
       if (normalizedFocus.length > 0) {
-        isFocused =
-          normalizedFocus.includes(normalizedStateName) ||
-          (normalizedFocus.includes("andaman and nicobar") && normalizedStateName === "a&n island") ||
-          (normalizedFocus.includes("jammu and kashmir") && normalizedStateName === "j&k");
+        isFocused = normalizedFocus.includes(normalizedStateName);
       }
 
       const pointData = dataLookup[normalizedStateName];
@@ -106,10 +126,41 @@ export default function InlineMap({
       } else {
         feature.properties.value = null;
       }
+
+      // Collect bbox coords for focused states
+      if (isFocused && normalizedFocus.length > 0) {
+        const geom = feature.geometry;
+        const rings: number[][][] =
+          geom?.type === "Polygon" ? geom.coordinates :
+          geom?.type === "MultiPolygon" ? geom.coordinates.flat() : [];
+        rings.forEach((ring: number[][]) => {
+          ring.forEach(([lng, lat]: number[]) => {
+            if (lng < minLng) minLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lng > maxLng) maxLng = lng;
+            if (lat > maxLat) maxLat = lat;
+          });
+        });
+      }
     });
 
-    return { enrichedGeoJson: enriched, maxValue: max || 1 };
-  }, [geoJsonData, mapData, focusStates]);
+    const bbox =
+      normalizedFocus.length > 0 && isFinite(minLng)
+        ? ([[minLng, minLat], [maxLng, maxLat]] as [[number, number], [number, number]])
+        : null;
+
+    return { enrichedGeoJson: enriched, maxValue: max || 1, focusBbox: bbox };
+  }, [geoJsonData, mapData, expandedFocusStates]);
+
+  // Auto-zoom: call fitBounds when BOTH map is loaded AND bbox is ready
+  const applyFocusBbox = useCallback(() => {
+    if (!focusBbox || !mapRef.current) return;
+    mapRef.current.fitBounds(focusBbox, { padding: 40, duration: 600 });
+  }, [focusBbox]);
+
+  useEffect(() => {
+    if (mapLoaded) applyFocusBbox();
+  }, [mapLoaded, applyFocusBbox]);
 
   const stateLayerStyle = {
     id: "states-fill",
@@ -156,7 +207,7 @@ export default function InlineMap({
   return (
     <div className="mt-3 bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm text-sm">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { setIsOpen(o => !o); setMapLoaded(false); }}
         className="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 flex items-center justify-between text-left font-medium text-gray-700 transition-colors"
       >
         <span className="flex items-center gap-2">
@@ -191,6 +242,7 @@ export default function InlineMap({
             interactiveLayerIds={["states-fill"]}
             onMouseMove={onHover}
             onMouseLeave={() => setHoverInfo(null)}
+            onLoad={() => { setMapLoaded(true); applyFocusBbox(); }}
           >
             <NavigationControl position="bottom-right" />
             {enrichedGeoJson && (
