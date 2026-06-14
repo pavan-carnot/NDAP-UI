@@ -608,6 +608,11 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    const apiKey = sessionStorage.getItem("ndap_api_key");
+    if (!apiKey) {
+      window.location.href = "/login";
+      return;
+    }
     getHealth().then(setHealth).catch(() => null);
     getRecentQueries(10).then(setRecentQueries).catch(() => null);
   }, []);
