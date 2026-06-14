@@ -39,7 +39,7 @@ export async function runQuery(
     await fetch(`${BASE}/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-Key": getApiKey() },
-      body: JSON.stringify({ query, session_id: sessionId, model, agent }),
+      body: JSON.stringify({ query, session_id: sessionId, model, ...(agent ? { agent } : {}) }),
     })
   );
 }
