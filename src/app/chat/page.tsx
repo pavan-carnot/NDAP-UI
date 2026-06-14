@@ -15,6 +15,7 @@ import {
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
+import { useLanguage } from "@/lib/language-context";
 import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
@@ -725,6 +726,7 @@ export default function ChatPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
+  const { language } = useLanguage();
   const router = useRouter();
   const authUser = getAuthUser();
 
@@ -762,7 +764,7 @@ export default function ChatPage() {
       if (!sessionId) setSessionId(sid);
 
       try {
-        const result = await askQuery(q.trim(), sid, "fast", selectedAgent);
+        const result = await askQuery(q.trim(), sid, "fast", selectedAgent, language);
         setTurns((prev) => [
           ...prev,
           { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
@@ -775,7 +777,7 @@ export default function ChatPage() {
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, sessionId, selectedAgent]
+    [loading, sessionId, selectedAgent, language]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1061,7 +1063,7 @@ export default function ChatPage() {
         </div>
 
         <p className="text-center text-[10px] text-gray-400 mt-2">
-          Responses are grounded exclusively in indexed government datasets. &nbsp;·&nbsp; NDAP GovData Intelligence POC
+          Responses are grounded exclusively in indexed government datasets. &nbsp;·&nbsp; NDAP GovData Intelligence POC &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">Carnot Research<sup className="text-[8px]">TM</sup></span>
         </p>
       </div>
     </div>

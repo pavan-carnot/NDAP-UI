@@ -102,13 +102,14 @@ export async function askQuery(
   message: string,
   sessionId: string | null,
   mode = "fast",
-  agent?: string | null
+  agent?: string | null,
+  language = "English"
 ): Promise<QueryResult> {
   const raw = await json<{ answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"] }>(
     await fetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sessionId, mode, agent }),
+      body: JSON.stringify({ message, sessionId, mode, agent, language }),
     })
   );
   // Normalise v1 shape (metadata) → existing QueryResult shape (meta)

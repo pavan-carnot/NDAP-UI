@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
 import { useSidebar } from "@/lib/sidebar-context";
+import { useLanguage } from "@/lib/language-context";
 import { getAuthUser, logout } from "@/lib/auth";
 
 const NAV_LINKS = [
@@ -15,29 +16,29 @@ const NAV_LINKS = [
 ];
 
 const LANGUAGES = [
-  { code: "en",  label: "English" },
-  { code: "hi",  label: "हिंदी" },
-  { code: "as",  label: "অসমীয়া — Assamese" },
-  { code: "bn",  label: "বাংলা — Bengali" },
-  { code: "brx", label: "बड़ो — Bodo" },
-  { code: "doi", label: "डोगरी — Dogri" },
-  { code: "gu",  label: "ગુજરાતી — Gujarati" },
-  { code: "kn",  label: "ಕನ್ನಡ — Kannada" },
-  { code: "ks",  label: "کشمیری — Kashmiri" },
-  { code: "kok", label: "कोंकणी — Konkani" },
-  { code: "mai", label: "मैथिली — Maithili" },
-  { code: "ml",  label: "മലയാളം — Malayalam" },
-  { code: "mni", label: "মৈতৈলোন্ — Manipuri" },
-  { code: "mr",  label: "मराठी — Marathi" },
-  { code: "ne",  label: "नेपाली — Nepali" },
-  { code: "or",  label: "ଓଡ଼ିଆ — Odia" },
-  { code: "pa",  label: "ਪੰਜਾਬੀ — Punjabi" },
-  { code: "sa",  label: "संस्कृतम् — Sanskrit" },
-  { code: "sat", label: "ᱥᱟᱱᱛᱟᱲᱤ — Santali" },
-  { code: "sd",  label: "سنڌي — Sindhi" },
-  { code: "ta",  label: "தமிழ் — Tamil" },
-  { code: "te",  label: "తెలుగు — Telugu" },
-  { code: "ur",  label: "اردو — Urdu" },
+  { code: "en",  label: "English",               enabled: true },
+  { code: "hi",  label: "हिंदी",                  enabled: true },
+  { code: "as",  label: "অসমীয়া — Assamese",     enabled: false },
+  { code: "bn",  label: "বাংলা — Bengali",        enabled: false },
+  { code: "brx", label: "बड़ो — Bodo",             enabled: false },
+  { code: "doi", label: "डोगरी — Dogri",          enabled: false },
+  { code: "gu",  label: "ગુજરાતી — Gujarati",    enabled: false },
+  { code: "kn",  label: "ಕನ್ನಡ — Kannada",        enabled: false },
+  { code: "ks",  label: "کشمیری — Kashmiri",      enabled: false },
+  { code: "kok", label: "कोंकणी — Konkani",       enabled: false },
+  { code: "mai", label: "मैथिली — Maithili",      enabled: false },
+  { code: "ml",  label: "മലയാളം — Malayalam",     enabled: false },
+  { code: "mni", label: "মৈতৈলোন্ — Manipuri",   enabled: false },
+  { code: "mr",  label: "मराठी — Marathi",        enabled: false },
+  { code: "ne",  label: "नेपाली — Nepali",        enabled: false },
+  { code: "or",  label: "ଓଡ଼ିଆ — Odia",           enabled: false },
+  { code: "pa",  label: "ਪੰਜਾਬੀ — Punjabi",       enabled: false },
+  { code: "sa",  label: "संस्कृतम् — Sanskrit",   enabled: false },
+  { code: "sat", label: "ᱥᱟᱱᱛᱟᱲᱤ — Santali",     enabled: false },
+  { code: "sd",  label: "سنڌي — Sindhi",          enabled: false },
+  { code: "ta",  label: "தமிழ் — Tamil",          enabled: false },
+  { code: "te",  label: "తెలుగు — Telugu",        enabled: false },
+  { code: "ur",  label: "اردو — Urdu",            enabled: false },
 ];
 
 type FontSize = "small" | "normal" | "large";
@@ -50,9 +51,10 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
 export default function Header() {
   const path = usePathname();
   const router = useRouter();
-  const [langOpen, setLangOpen]         = useState(false);
-  const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
-  const [fontSize, setFontSize]         = useState<FontSize>("normal");
+  const [langOpen, setLangOpen] = useState(false);
+  const [fontSize, setFontSize] = useState<FontSize>("normal");
+  const { language, setLanguage } = useLanguage();
+  const selectedLang = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
   const langRef = useRef<HTMLDivElement>(null);
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const authUser = getAuthUser();
@@ -138,20 +140,29 @@ export default function Header() {
                 <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[200] overflow-hidden">
                   <div className="max-h-72 overflow-y-auto">
                     {LANGUAGES.map((lang, i) => (
-                      <button
+                      <div
                         key={lang.code}
-                        onClick={() => { setSelectedLang(lang); setLangOpen(false); }}
+                        onClick={() => {
+                          if (!lang.enabled) return;
+                          setLanguage(lang.code);
+                          setLangOpen(false);
+                        }}
                         className={clsx(
-                          "w-full text-left px-4 py-2 text-xs transition-colors",
+                          "w-full text-left px-4 py-2 text-xs text-gray-700",
                           i < 2 && "font-semibold",
-                          selectedLang.code === lang.code
-                            ? "bg-ndap-navy text-white"
-                            : "text-gray-700 hover:bg-ndap-sky",
-                          i === 1 && "border-b border-gray-200"
+                          i === 1 && "border-b border-gray-200",
+                          lang.enabled
+                            ? clsx(
+                                "cursor-pointer transition-colors",
+                                selectedLang.code === lang.code
+                                  ? "bg-ndap-navy text-white"
+                                  : "hover:bg-ndap-sky"
+                              )
+                            : "cursor-default"
                         )}
                       >
                         {lang.label}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
