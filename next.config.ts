@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   experimental: {
     proxyTimeout: 120000,
   },
