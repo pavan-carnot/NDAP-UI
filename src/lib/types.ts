@@ -25,6 +25,7 @@ export interface QueryMeta {
   execution_trace: string[];
   intent_metric?: string;
   focus_states?: string[];
+  agent?: string;
 }
 
 export interface QueryResult {

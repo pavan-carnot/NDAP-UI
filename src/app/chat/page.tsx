@@ -22,7 +22,8 @@ interface InlineCit { source: string; page: string; quote: string; }
 
 function buildInlineCitations(
   rawAnswer: string,
-  chunks: ChatTurn["result"]["chunks"]
+  chunks: ChatTurn["result"]["chunks"],
+  isEmail = false
 ): { processedText: string; citations: InlineCit[] } {
   const citations: InlineCit[] = [];
   const keyToIdx = new Map<string, number>();
@@ -34,6 +35,39 @@ function buildInlineCitations(
       citations.push({ source, page, quote });
     }
     return keyToIdx.get(key)!;
+  }
+
+  // If it's an email draft, extract references but do not render inline bracket links in the text
+  if (isEmail) {
+    let result = rawAnswer.replace(
+      /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]/gi,
+      (_, filename, _ext, pageStr) => {
+        getIdx(filename.trim(), pageStr.trim());
+        return "";
+      }
+    );
+
+    result = result.replace(
+      /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g,
+      (_, filename, pageStr, quote) => {
+        getIdx(filename.trim(), pageStr.trim(), quote?.trim() ?? "");
+        return "";
+      }
+    );
+
+    // Also strip any leftover markdown citation link syntax [1](#cite-0) or [1] or [cite-0]
+    result = result.replace(/\[\d+\]\(#cite-\d+\)/g, "")
+                   .replace(/\[\d+\]/g, "")
+                   .replace(/#cite-\d+/g, "");
+
+    // Fallback: use chunk sources if nothing matched
+    if (citations.length === 0) {
+      for (const c of chunks) {
+        getIdx(c.source, String(c.page));
+      }
+    }
+
+    return { processedText: result.trim(), citations };
   }
 
   // New format: [filename.pdf, Page 12]
@@ -508,13 +542,16 @@ const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|
 function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
-  const { processedText, citations } = buildInlineCitations(answer, chunks);
+  
+  const isEmail = meta.agent === "draft_email" || answer.startsWith("**Subject:**") || answer.startsWith("Subject:");
+  const { processedText, citations } = buildInlineCitations(answer, chunks, isEmail);
 
   // If current message has no usable citations but is a map request, fall back to previous turn's map context
   const isMapRequest = MAP_REQUEST_RE.test(turn.query);
   const hasNoCitations = citations.length === 0;
+  const prevIsEmail = prevTurn?.result?.meta?.agent === "draft_email" || prevTurn?.result?.answer?.startsWith("**Subject:**");
   const fallbackCitations = (isMapRequest && hasNoCitations && prevTurn)
-    ? buildInlineCitations(prevTurn.result.answer, prevTurn.result.chunks).citations
+    ? buildInlineCitations(prevTurn.result.answer, prevTurn.result.chunks, prevIsEmail).citations
     : null;
   const fallbackMeta = fallbackCitations ? prevTurn!.result.meta : null;
 
@@ -587,6 +624,25 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
               {processedText}
             </ReactMarkdown>
           </div>
+
+          {citations.length > 0 && (
+            <div className="mt-4 pt-3.5 border-t border-gray-100 anim-in">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Sources</div>
+              <div className="flex flex-wrap gap-2">
+                {citations.map((c, i) => (
+                  <CitationChip
+                    key={i}
+                    cit={c}
+                    onOpenPdf={c.source.toLowerCase().endsWith(".pdf") ? () => onOpenPdf({
+                      url: `/static/${encodeURIComponent(c.source)}`,
+                      page: parseInt(c.page) || 1,
+                      filename: c.source
+                    }) : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
