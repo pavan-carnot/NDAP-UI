@@ -569,6 +569,11 @@ function MessageCard({ turn, onOpenPdf }: { turn: ChatTurn; onOpenPdf: (t: PdfTa
         </div>
       )}
 
+      {/* Map visualizations */}
+      {citations.length > 0 && (
+        <CitationMaps citations={citations} intentMetric={turn.query} />
+      )}
+
       {/* Generated document download card */}
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}
 
