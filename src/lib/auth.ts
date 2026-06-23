@@ -30,5 +30,6 @@ export function getAuthUser(): string | null {
 }
 
 export function isAuthenticated(): boolean {
-  return getAuthUser() !== null;
+  // login commented out — always authenticated
+  return true;
 }
