@@ -83,35 +83,32 @@ export default function Header() {
     <header className="w-full sticky top-0 z-50 flex-shrink-0 shadow-lg">
 
       {/* ── Single combined brand bar ──────────────────────────────── */}
-      <div style={{ background: "linear-gradient(135deg, #001F5B 0%, #003087 60%, #1565C0 100%)" }}>
-        <div className="max-w-screen-xl mx-auto px-4 py-2 flex items-center gap-4">
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-screen-xl mx-auto px-4 py-1.5 flex items-center gap-3">
 
-          {/* NDAP logo */}
-          <div className="flex-shrink-0">
+          {/* Ministry logo */}
+          <div className="flex-shrink-0 flex flex-col items-center">
             <Image
-              src="/ndap_logo.png"
-              alt="NDAP Logo"
-              width={140}
-              height={52}
+              src="/docs/image.png"
+              alt="Government of India Emblem"
+              width={38}
+              height={38}
               className="object-contain"
               priority
             />
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-12 bg-white/20 flex-shrink-0" />
+          <div className="hidden sm:block w-px h-8 bg-gray-300 flex-shrink-0" />
 
           {/* Platform text */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-white font-bold text-base sm:text-lg leading-tight tracking-tight">
-              National Data and Analytics Platform
+            <p className="text-gray-500 text-[11px] leading-tight tracking-wide">
+              नवीन एवं नवीकरणीय ऊर्जा मंत्रालय
+            </p>
+            <h1 className="text-gray-900 font-bold text-sm sm:text-base leading-tight tracking-tight">
+              MINISTRY OF NEW AND RENEWABLE ENERGY
             </h1>
-            <p className="text-blue-200 text-[11px] sm:text-xs mt-0.5 tracking-wide">
-              Data Empowering India &nbsp;·&nbsp; NDAP &nbsp;·&nbsp; राष्ट्रीय डेटा और विश्लेषण मंच
-            </p>
-            <p className="text-white/50 text-[10px] mt-0.5 tracking-wide hidden sm:block">
-              भारत सरकार &nbsp;|&nbsp; Government of India &nbsp;|&nbsp; NITI Aayog
-            </p>
           </div>
 
           {/* Right: language + font size */}
@@ -121,7 +118,7 @@ export default function Header() {
             <div ref={langRef} className="relative">
               <button
                 onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <svg viewBox="0 0 20 20" className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
                   <circle cx="10" cy="10" r="8"/>
@@ -155,8 +152,8 @@ export default function Header() {
                             ? clsx(
                                 "cursor-pointer transition-colors",
                                 selectedLang.code === lang.code
-                                  ? "bg-ndap-navy text-white"
-                                  : "hover:bg-ndap-sky"
+                                  ? "bg-gray-800 text-white"
+                                  : "hover:bg-gray-100"
                               )
                             : "cursor-default"
                         )}
@@ -170,15 +167,15 @@ export default function Header() {
             </div>
 
             {/* Font size controls */}
-            <div className="flex items-center bg-white/10 border border-white/20 rounded-lg overflow-hidden">
+            <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
               {(["large", "normal", "small"] as FontSize[]).map((size, i) => (
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
                   className={clsx(
-                    "px-3 py-1.5 text-white transition-colors",
-                    fontSize === size ? "bg-white/25" : "hover:bg-white/15",
-                    i < 2 && "border-r border-white/20"
+                    "px-3 py-1.5 text-gray-700 transition-colors",
+                    fontSize === size ? "bg-gray-200" : "hover:bg-gray-100",
+                    i < 2 && "border-r border-gray-300"
                   )}
                   style={{ fontSize: size === "large" ? "13px" : size === "normal" ? "11px" : "9px", fontWeight: 700 }}
                   title={size === "large" ? "Increase font" : size === "normal" ? "Default font" : "Decrease font"}
@@ -191,16 +188,10 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Tricolor stripe */}
-        <div className="flex w-full h-[3px]">
-          <div className="flex-1 bg-ndap-saffron" />
-          <div className="flex-1 bg-white" />
-          <div className="flex-1 bg-green-600" />
-        </div>
       </div>
 
       {/* ── Navigation bar ────────────────────────────────────────── */}
-      <div className="bg-white border-b border-ndap-border">
+      <div className="bg-gray-50 border-b border-gray-200">
         <div className="max-w-screen-xl mx-auto px-4 flex items-center gap-1">
 
           {/* Sidebar toggle — far left, only on /chat */}
@@ -225,8 +216,8 @@ export default function Header() {
                 className={clsx(
                   "relative px-4 py-3 text-sm font-medium transition-colors duration-150",
                   active
-                    ? "text-ndap-navy border-b-2 border-ndap-navy"
-                    : "text-gray-600 hover:text-ndap-blue hover:bg-ndap-sky"
+                    ? "text-gray-900 border-b-2 border-gray-900"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 )}
               >
                 {link.label}
@@ -238,14 +229,14 @@ export default function Header() {
             {authUser && (
               <>
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-ndap-navy flex items-center justify-center flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0">
                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white">
                       <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
                     </svg>
                   </div>
                   <div className="leading-tight">
-                    <div className="text-xs font-semibold text-ndap-navy capitalize">{authUser}</div>
-                    <div className="text-[11px] text-gray-500">NITI Aayog</div>
+                    <div className="text-xs font-semibold text-gray-800 capitalize">{authUser}</div>
+                    <div className="text-[11px] text-gray-500">MNRE</div>
                   </div>
                 </div>
                 <button
