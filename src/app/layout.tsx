@@ -6,9 +6,9 @@ import { SidebarProvider } from "@/lib/sidebar-context";
 import { LanguageProvider } from "@/lib/language-context";
 
 export const metadata: Metadata = {
-  title: "NDAP – National Data and Analytics Platform",
+  title: "MNRE – Ministry of New and Renewable Energy",
   description:
-    "AI-powered government dataset intelligence — National Data and Analytics Platform, NITI Aayog.",
+    "AI-powered government dataset intelligence — Ministry of New and Renewable Energy, Government of India.",
   icons: { icon: "/favicon.ico" },
 };
 
