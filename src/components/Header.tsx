@@ -80,45 +80,27 @@ export default function Header() {
   if (path === "/login") return null;
 
   return (
-    <header className="w-full sticky top-0 z-50 flex-shrink-0 shadow-lg">
+    <header className="w-full sticky top-0 z-50 flex-shrink-0 shadow-sm">
 
-      {/* ── Single combined brand bar ──────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-screen-xl mx-auto px-4 py-1.5 flex items-center gap-3">
+      {/* ── Top utility bar ───────────────────────────────────────── */}
+      <div className="bg-[#f5f5f5] border-b border-gray-300">
+        <div className="max-w-screen-xl mx-auto px-4 py-1 flex items-center justify-between">
 
-          {/* Ministry logo */}
-          <div className="flex-shrink-0 flex flex-col items-center">
-            <Image
-              src="/docs/image.png"
-              alt="Government of India Emblem"
-              width={38}
-              height={38}
-              className="object-contain"
-              priority
-            />
-          </div>
-
-          {/* Divider */}
-          <div className="hidden sm:block w-px h-8 bg-gray-300 flex-shrink-0" />
-
-          {/* Platform text */}
-          <div className="flex-1 min-w-0">
-            <p className="text-gray-500 text-[11px] leading-tight tracking-wide">
-              नवीन एवं नवीकरणीय ऊर्जा मंत्रालय
-            </p>
-            <h1 className="text-gray-900 font-bold text-sm sm:text-base leading-tight tracking-tight">
-              MINISTRY OF NEW AND RENEWABLE ENERGY
-            </h1>
+          {/* Left: Gov label */}
+          <div className="flex items-center gap-2 text-[12px] text-gray-700">
+            <span className="font-medium">भारत सरकार</span>
+            <span className="text-gray-400">|</span>
+            <span className="font-medium tracking-wide">GOVERNMENT OF INDIA</span>
           </div>
 
           {/* Right: language + font size */}
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
 
             {/* Language dropdown */}
             <div ref={langRef} className="relative">
               <button
                 onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1 text-gray-600 text-[12px] font-medium px-2 py-1 hover:bg-gray-200 rounded transition-colors"
               >
                 <svg viewBox="0 0 20 20" className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
                   <circle cx="10" cy="10" r="8"/>
@@ -167,17 +149,16 @@ export default function Header() {
             </div>
 
             {/* Font size controls */}
-            <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
-              {(["large", "normal", "small"] as FontSize[]).map((size, i) => (
+            <div className="flex items-center gap-0.5">
+              {(["large", "normal", "small"] as FontSize[]).map((size) => (
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
                   className={clsx(
-                    "px-3 py-1.5 text-gray-700 transition-colors",
-                    fontSize === size ? "bg-gray-200" : "hover:bg-gray-100",
-                    i < 2 && "border-r border-gray-300"
+                    "px-2 py-1 text-gray-600 rounded transition-colors hover:bg-gray-200",
+                    fontSize === size && "bg-gray-300"
                   )}
-                  style={{ fontSize: size === "large" ? "13px" : size === "normal" ? "11px" : "9px", fontWeight: 700 }}
+                  style={{ fontSize: size === "large" ? "14px" : size === "normal" ? "11px" : "9px", fontWeight: 700 }}
                   title={size === "large" ? "Increase font" : size === "normal" ? "Default font" : "Decrease font"}
                 >
                   {size === "large" ? "A+" : size === "normal" ? "A" : "A⁻"}
@@ -187,11 +168,52 @@ export default function Header() {
 
           </div>
         </div>
+      </div>
 
+      {/* ── Main brand bar ────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-screen-xl mx-auto px-6 py-1.5 flex items-center gap-4">
+
+          {/* Ashoka emblem */}
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <Image
+              src="/docs/image.png"
+              alt="Government of India Emblem"
+              width={28}
+              height={28}
+              className="object-contain"
+              priority
+            />
+            <span className="text-[9px] text-gray-500 tracking-wide">सत्यमेव जयते</span>
+          </div>
+
+          {/* Ministry name */}
+          <div className="flex-1 min-w-0">
+            <p className="text-gray-500 text-[11px] leading-tight">
+              नवीन एवं नवीकरणीय ऊर्जा मंत्रालय
+            </p>
+            <h1 className="text-gray-900 font-bold text-sm sm:text-base leading-tight tracking-tight">
+              MINISTRY OF NEW AND RENEWABLE ENERGY
+            </h1>
+          </div>
+
+          {/* Azadi Ka Amrit Mahotsav logo */}
+          <div className="flex-shrink-0">
+            <Image
+              src="/docs/image copy.png"
+              alt="Azadi Ka Amrit Mahotsav"
+              width={90}
+              height={72}
+              className="object-contain"
+              priority
+            />
+          </div>
+
+        </div>
       </div>
 
       {/* ── Navigation bar ────────────────────────────────────────── */}
-      <div className="bg-gray-50 border-b border-gray-200">
+      <div className="bg-white border-b border-gray-200">
         <div className="max-w-screen-xl mx-auto px-4 flex items-center gap-1">
 
           {/* Sidebar toggle — far left, only on /chat */}
@@ -217,7 +239,7 @@ export default function Header() {
                   "relative px-4 py-3 text-sm font-medium transition-colors duration-150",
                   active
                     ? "text-gray-900 border-b-2 border-gray-900"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 )}
               >
                 {link.label}
