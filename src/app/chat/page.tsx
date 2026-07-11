@@ -231,7 +231,7 @@ function LiveTrace({ query }: { query: string }) {
   );
 }
 
-const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/static").replace(/\/$/, "");
+const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/api/docs").replace(/\/$/, "");
 
 function docUrl(filename: string, page?: string | number) {
   const base = `${DOCS_BASE}/${encodeURIComponent(filename)}`;
@@ -643,7 +643,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                     return (
                       <button
                         onClick={() => cit && isRealPdf && onOpenPdf({
-                          url: `/static/${encodeURIComponent(cit.source)}`,
+                          url: `${DOCS_BASE}/${encodeURIComponent(cit.source)}`,
                           page: parseInt(cit.page) || 1,
                           filename: cit.source,
                         })}
@@ -671,7 +671,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                     key={i}
                     cit={c}
                     onOpenPdf={c.source.toLowerCase().endsWith(".pdf") ? () => onOpenPdf({
-                      url: `/static/${encodeURIComponent(c.source)}`,
+                      url: `${DOCS_BASE}/${encodeURIComponent(c.source)}`,
                       page: parseInt(c.page) || 1,
                       filename: c.source
                     }) : undefined}

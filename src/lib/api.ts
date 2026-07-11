@@ -7,10 +7,7 @@ import type {
   Skill,
 } from "./types";
 
-// Use NEXT_PUBLIC_API_URL to bypass Next.js 30s proxy timeout on long LLM queries
-const BASE = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")}/api`
-  : "/api";
+const BASE = "/api";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
