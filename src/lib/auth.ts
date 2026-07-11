@@ -8,19 +8,19 @@ export function login(username: string, password: string): boolean {
     (c) => c.username === username && c.password === password
   );
   if (match) {
-    sessionStorage.setItem("mnre_auth", JSON.stringify({ username: match.username }));
+    sessionStorage.setItem("icarkno_auth", JSON.stringify({ username: match.username }));
     return true;
   }
   return false;
 }
 
 export function logout() {
-  sessionStorage.removeItem("mnre_auth");
+  sessionStorage.removeItem("icarkno_auth");
 }
 
 export function getAuthUser(): string | null {
   try {
-    const raw = sessionStorage.getItem("mnre_auth");
+    const raw = sessionStorage.getItem("icarkno_auth");
     if (!raw) return null;
     const { username } = JSON.parse(raw);
     return username ?? null;

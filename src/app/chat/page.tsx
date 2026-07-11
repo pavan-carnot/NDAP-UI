@@ -621,7 +621,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                 </svg>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                MNRE Analysis
+                icarKno Analysis
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -1097,7 +1097,7 @@ export default function ChatPage() {
         </div>
 
         <p className="text-center text-[10px] text-gray-400 mt-2">
-          Responses are grounded exclusively in indexed government datasets. &nbsp;·&nbsp; MNRE GovData Intelligence POC &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">Carnot Research<sup className="text-[8px]">TM</sup></span>
+          Responses are grounded exclusively in indexed datasets. &nbsp;·&nbsp; icarKno Intelligence Platform &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">Carnot Research<sup className="text-[8px]">TM</sup></span>
         </p>
       </div>
     </div>

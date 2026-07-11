@@ -6,9 +6,9 @@ import { SidebarProvider } from "@/lib/sidebar-context";
 import { LanguageProvider } from "@/lib/language-context";
 
 export const metadata: Metadata = {
-  title: "MNRE – Ministry of New and Renewable Energy",
+  title: "icarKno – Context-aware Conversational AI",
   description:
-    "AI-powered government dataset intelligence — Ministry of New and Renewable Energy, Government of India.",
+    "icarKno — Context-aware conversational AI with multi-domain expertise integration. Powered by Carnot Research.",
   icons: { icon: "/favicon.ico" },
 };
 
