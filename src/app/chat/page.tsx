@@ -13,6 +13,7 @@ import {
   resetSession,
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
+import CitationCharts from "@/components/CitationCharts";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
@@ -688,6 +689,8 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
         intentMetric={mapMeta.intent_metric}
         focusStates={mapMeta.focus_states}
       />
+
+      <CitationCharts query={turn.query} />
 
       {/* Generated document download card */}
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}

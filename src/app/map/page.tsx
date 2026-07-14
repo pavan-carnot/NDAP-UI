@@ -3,10 +3,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Map, { Source, Layer, Popup, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapDatasets, getMapData, MapDataset, MapDataPoint } from "@/lib/api";
+import { getMapDatasets, getMapData, MapDataset, MapDataPoint, getChartList, getChartData, ChartConfig } from "@/lib/api";
+
+// Chart dataset IDs are prefixed with "chart::" to distinguish from map datasets
+const CHART_PREFIX = "chart::";
 
 export default function MapPage() {
   const [datasets, setDatasets] = useState<MapDataset[]>([]);
+  const [chartConfigs, setChartConfigs] = useState<ChartConfig[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
   const [mapData, setMapData] = useState<MapDataPoint[]>([]);
   const [geoJsonData, setGeoJsonData] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -23,9 +27,17 @@ export default function MapPage() {
   useEffect(() => {
     async function fetchDatasets() {
       try {
-        const data = await getMapDatasets();
-        setDatasets(data);
-        if (data.length > 0) setSelectedDatasetId(data[0].id);
+        const [mapDs, chartList] = await Promise.all([
+          getMapDatasets(),
+          getChartList().catch(() => [] as ChartConfig[]),
+        ]);
+        setDatasets(mapDs);
+        const stateCharts = chartList.filter(
+          c => c.chart_type === "bar_state" || c.chart_type === "bar_state_timeaskey"
+        );
+        setChartConfigs(stateCharts);
+        if (mapDs.length > 0) setSelectedDatasetId(mapDs[0].id);
+        else if (stateCharts.length > 0) setSelectedDatasetId(CHART_PREFIX + stateCharts[0].id);
       } catch (err) {
         console.error("Failed to load map datasets:", err);
       }
@@ -51,8 +63,25 @@ export default function MapPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const data = await getMapData(selectedDatasetId);
-        setMapData(data);
+        if (selectedDatasetId.startsWith(CHART_PREFIX)) {
+          // Load chart data and convert to MapDataPoint format
+          const chartId = selectedDatasetId.slice(CHART_PREFIX.length);
+          const res = await getChartData(chartId);
+          const converted: MapDataPoint[] = res.data
+            .filter(d => d.value != null)
+            .map(d => ({
+              location: d.name,
+              value: d.value as number,
+              unit: res.config.unit ?? "",
+              time: "",
+              latitude: 0,
+              longitude: 0,
+            }));
+          setMapData(converted);
+        } else {
+          const data = await getMapData(selectedDatasetId);
+          setMapData(data);
+        }
       } catch (err) {
         console.error("Failed to load map data:", err);
       } finally {
@@ -62,10 +91,15 @@ export default function MapPage() {
     fetchData();
   }, [selectedDatasetId]);
 
-  const selectedDataset = useMemo(
-    () => datasets.find(d => d.id === selectedDatasetId),
-    [datasets, selectedDatasetId]
-  );
+  const selectedDataset = useMemo((): MapDataset | null => {
+    if (selectedDatasetId.startsWith(CHART_PREFIX)) {
+      const chartId = selectedDatasetId.slice(CHART_PREFIX.length);
+      const c = chartConfigs.find(c => c.id === chartId);
+      if (!c) return null;
+      return { id: selectedDatasetId, source_file: "visual_timeseries", metric: c.metric, label: c.title, description: c.description };
+    }
+    return datasets.find(d => d.id === selectedDatasetId) ?? null;
+  }, [datasets, chartConfigs, selectedDatasetId]);
 
   const { enrichedGeoJson, maxValue } = useMemo(() => {
     if (!geoJsonData) return { enrichedGeoJson: null, maxValue: 1 };
@@ -176,11 +210,24 @@ export default function MapPage() {
             onChange={e => setSelectedDatasetId(e.target.value)}
             disabled={loading}
           >
-            {datasets.map(ds => (
-              <option key={ds.id} value={ds.id}>
-                {ds.label ?? ds.metric.replace(/_/g, " ")}
-              </option>
-            ))}
+            {datasets.length > 0 && (
+              <optgroup label="Map Datasets">
+                {datasets.map(ds => (
+                  <option key={ds.id} value={ds.id}>
+                    {ds.label ?? ds.metric.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {chartConfigs.length > 0 && (
+              <optgroup label="State-wise Capacity Charts">
+                {chartConfigs.map(c => (
+                  <option key={c.id} value={CHART_PREFIX + c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           {loading && <span className="text-sm text-ndap-primary font-semibold">Loading…</span>}
         </div>

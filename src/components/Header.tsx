@@ -10,9 +10,9 @@ import { useLanguage } from "@/lib/language-context";
 import { getAuthUser, logout } from "@/lib/auth";
 
 const NAV_LINKS = [
-  { href: "/chat",  label: "Knowledge Agent" },
-  { href: "/map",   label: "Spatial Analytics" },
-  { href: "/admin", label: "Admin & Data" },
+  { href: "/chat",   label: "Knowledge Agent" },
+  { href: "/map",    label: "Spatial Analytics" },
+  { href: "/admin",  label: "Admin & Data" },
 ];
 
 const LANGUAGES = [

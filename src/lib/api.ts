@@ -199,3 +199,36 @@ export async function getMapData(datasetId: string, states?: string[]): Promise<
   }
   return json<MapDataPoint[]>(await fetch(url));
 }
+
+// ── Visual Analytics / Charts ──────────────────────────────────────────────
+
+export interface ChartConfig {
+  id: string;
+  title: string;
+  description: string;
+  metric: string;
+  chart_type: "bar_state" | "bar_state_timeaskey" | "bar" | "bar_horizontal" | "line";
+  unit: string;
+  group: string;
+}
+
+export interface ChartDataPoint {
+  name: string;
+  value: number | null;
+  unit?: string;
+  state?: string;
+}
+
+export interface ChartResponse {
+  chart_id: string;
+  config: ChartConfig;
+  data: ChartDataPoint[];
+}
+
+export async function getChartList(): Promise<ChartConfig[]> {
+  return json<ChartConfig[]>(await fetch(`${BASE}/charts/list`));
+}
+
+export async function getChartData(chartId: string): Promise<ChartResponse> {
+  return json<ChartResponse>(await fetch(`${BASE}/charts/data?chart_id=${encodeURIComponent(chartId)}`));
+}
