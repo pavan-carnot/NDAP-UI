@@ -700,11 +700,11 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
 /* ── Empty state ──────────────────────────────────────────────────── */
 function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   const samples = [
-    "What is the name of the web-based, real-time patient management system used under the National Tuberculosis Elimination Programme (NTEP)?",
-    "What specific financial benefit is provided to patients under the Ni-kshay Poshan Yojna (NPY)?",
-    "What is the toll-free number for the National TB Call Centre (Ni-kshay SAMPARK)?",
-    "What diagnostic test is prioritized upfront for the diagnosis of Drug-Sensitive TB (DS-TB)?",
-    "What does India's TB report say about the MDR-TB and drug-resistant TB situation?",
+    "What is India's global rank in terms of renewable energy installed capacity?",
+    "Which platform is used by the Ministry of New and Renewable Energy to modernize and empower civil services under Mission Karmayogi?",
+    "Which academic institution coordinates the Jalurjamitra Skill Development Programme?",
+    "What is the official URL of the Indian Renewable Energy Idea Exchange portal?",
+    "Which state submitted the highest renewable energy capacity addition pledge during RE-INVEST 2024?",
   ];
 
   return (

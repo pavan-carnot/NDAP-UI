@@ -1,6 +1,5 @@
 export const STATIC_CREDENTIALS = [
-  { username: "admin", password: "admin@123" },
-  { username: "secretary", password: "niti@2024" },
+  { username: "admin@mnre.in", password: "Research@2026" },
 ];
 
 export function login(username: string, password: string): boolean {
@@ -30,6 +29,5 @@ export function getAuthUser(): string | null {
 }
 
 export function isAuthenticated(): boolean {
-  // login commented out — always authenticated
-  return true;
+  return getAuthUser() !== null;
 }
