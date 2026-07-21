@@ -1,5 +1,5 @@
 export const STATIC_CREDENTIALS = [
-  { username: "admin@mnre.in", password: "Research@2026" },
+  { username: "admin@ihfc.in", password: "Research@2026" },
 ];
 
 export function login(username: string, password: string): boolean {
@@ -7,19 +7,19 @@ export function login(username: string, password: string): boolean {
     (c) => c.username === username && c.password === password
   );
   if (match) {
-    sessionStorage.setItem("icarkno_auth", JSON.stringify({ username: match.username }));
+    sessionStorage.setItem("ihfc_auth", JSON.stringify({ username: match.username }));
     return true;
   }
   return false;
 }
 
 export function logout() {
-  sessionStorage.removeItem("icarkno_auth");
+  sessionStorage.removeItem("ihfc_auth");
 }
 
 export function getAuthUser(): string | null {
   try {
-    const raw = sessionStorage.getItem("icarkno_auth");
+    const raw = sessionStorage.getItem("ihfc_auth");
     if (!raw) return null;
     const { username } = JSON.parse(raw);
     return username ?? null;

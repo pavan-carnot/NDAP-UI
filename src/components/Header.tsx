@@ -82,34 +82,27 @@ export default function Header() {
   return (
     <header className="w-full sticky top-0 z-50 flex-shrink-0">
 
-      {/* ── Brand bar — soft off-white ─────────────────────────── */}
-      <div className="relative overflow-hidden bg-[#F7F9FC] border-b border-[#C5D8F0] shadow-sm">
-
-        {/* Colorful decorative bubbles */}
-        <div className="absolute -right-8 -top-8 w-44 h-44 rounded-full bg-[#BFDBFE] pointer-events-none opacity-50" />
-        <div className="absolute right-44 -bottom-6 w-20 h-20 rounded-full bg-[#BBF7D0] pointer-events-none opacity-60" />
-        <div className="absolute right-24 top-2 w-10 h-10 rounded-full bg-[#FDE68A] pointer-events-none opacity-50" />
-        <div className="absolute right-72 -top-4 w-14 h-14 rounded-full bg-[#FBCFE8] pointer-events-none opacity-40" />
+      {/* ── Brand bar ─────────────────────────── */}
+      <div className="relative overflow-hidden bg-[#F9F9F9] border-b border-[#E5E5E5] shadow-sm">
 
         <div className="relative max-w-screen-xl mx-auto px-6 py-3 flex items-center gap-4">
 
-          {/* Logo + name + tagline */}
+          {/* Logo + name + divider + tagline */}
           <Link href="/chat" className="flex items-center gap-3 flex-shrink-0">
             <Image
-              src="/icarkno-icon.png"
-              alt="icarKno"
-              width={48}
-              height={48}
+              src="/ihfc single.png"
+              alt="IHFC"
+              width={52}
+              height={52}
               className="object-contain"
               priority
             />
-            <div>
-              <div className="text-[#003087] font-bold text-xl tracking-tight leading-none">
-                icarKno<sup className="text-[10px] font-semibold text-black align-super ml-0.5">TM</sup>
-              </div>
-              <div className="text-[#1565C0] text-[11px] mt-0.5 tracking-wide">
-                Knowledge Intelligence Platform &nbsp;·&nbsp; Powered by Carnot Research
-              </div>
+            <span className="text-[#1a1a1a] font-bold tracking-tight" style={{ fontSize: "42px", lineHeight: "52px" }}>IHFC</span>
+            <div className="w-px h-10 bg-[#1a1a1a]/30 mx-1" />
+            <div className="text-[#1a1a1a] leading-snug">
+              <div className="text-sm font-semibold">Technology</div>
+              <div className="text-sm font-semibold">Innovation Hub</div>
+              <div className="text-sm font-semibold">of IIT Delhi</div>
             </div>
           </Link>
 
@@ -120,7 +113,7 @@ export default function Header() {
             <div ref={langRef} className="relative">
               <button
                 onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1.5 text-[#1565C0] text-[12px] font-medium px-2.5 py-1.5 hover:bg-[#E3F2FD] rounded-lg transition-colors border border-[#C5D8F0]"
+                className="flex items-center gap-1.5 text-[#1a1a1a] text-[12px] font-medium px-2.5 py-1.5 hover:bg-[#E5E5E5] rounded-lg transition-colors border border-[#E5E5E5]"
               >
                 <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
                   <circle cx="10" cy="10" r="8"/>
@@ -136,7 +129,7 @@ export default function Header() {
               </button>
 
               {langOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-[#C5D8F0] rounded-xl shadow-xl z-[200] overflow-hidden">
+                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-[#E5E5E5] rounded-xl shadow-xl z-[200] overflow-hidden">
                   <div className="max-h-64 overflow-y-auto py-1">
                     {LANGUAGES.map((lang, i) => (
                       <div
@@ -148,13 +141,13 @@ export default function Header() {
                         }}
                         className={clsx(
                           "px-4 py-2 text-xs",
-                          i === 1 && "border-b border-[#E3F2FD] mb-1",
+                          i === 1 && "border-b border-[#E5E5E5] mb-1",
                           lang.enabled
                             ? clsx(
                                 "cursor-pointer transition-colors",
                                 selectedLang.code === lang.code
-                                  ? "text-[#003087] font-semibold bg-[#E3F2FD]"
-                                  : "text-gray-700 hover:bg-[#F0F5FB]"
+                                  ? "text-[#F47920] font-semibold bg-[#FFF5EE]"
+                                  : "text-gray-700 hover:bg-[#F9F9F9]"
                               )
                             : "text-gray-300 cursor-default"
                         )}
@@ -168,15 +161,15 @@ export default function Header() {
             </div>
 
             {/* Font size */}
-            <div className="flex items-center border border-[#C5D8F0] rounded-lg overflow-hidden">
+            <div className="flex items-center border border-[#E5E5E5] rounded-lg overflow-hidden">
               {(["small", "normal", "large"] as FontSize[]).map((size, i) => (
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
                   className={clsx(
                     "w-7 h-7 flex items-center justify-center transition-colors",
-                    fontSize === size ? "bg-[#003087] text-white font-bold" : "text-[#1565C0] hover:bg-[#E3F2FD]",
-                    i < 2 && "border-r border-[#C5D8F0]"
+                    fontSize === size ? "bg-[#1a1a1a] text-white font-bold" : "text-[#1a1a1a]/60 hover:bg-[#E5E5E5]",
+                    i < 2 && "border-r border-[#E5E5E5]"
                   )}
                   style={{ fontSize: size === "large" ? "13px" : size === "normal" ? "11px" : "9px", fontWeight: fontSize === size ? 700 : 500 }}
                   title={size === "large" ? "Large text" : size === "normal" ? "Default text" : "Small text"}
@@ -186,22 +179,22 @@ export default function Header() {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-[#C5D8F0] mx-1" />
+            <div className="w-px h-5 bg-[#E5E5E5] mx-1" />
 
             {/* User */}
             {authUser && (
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#003087] flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[#F47920] flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-[12px] font-bold uppercase">
                     {authUser[0]}
                   </span>
                 </div>
-                <span className="text-[13px] font-medium text-[#003087] capitalize hidden sm:block">
+                <span className="text-[13px] font-medium text-[#1a1a1a] capitalize hidden sm:block">
                   {authUser}
                 </span>
                 <button
                   onClick={() => { logout(); router.replace("/login"); }}
-                  className="text-[#C5D8F0] hover:text-red-500 transition-colors ml-1"
+                  className="text-[#1a1a1a]/30 hover:text-red-500 transition-colors ml-1"
                   title="Sign out"
                 >
                   <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -215,8 +208,8 @@ export default function Header() {
         </div>
       </div>
 
-      {/* ── Nav tab bar — #003087, same as New Analysis button ── */}
-      <div className="bg-[#003087]">
+      {/* ── Nav tab bar ── */}
+      <div className="bg-[#111111]">
         <div className="max-w-screen-xl mx-auto px-4 flex items-center gap-1">
 
           {/* Sidebar toggle — only on /chat */}
@@ -241,7 +234,7 @@ export default function Header() {
                 className={clsx(
                   "relative px-4 py-3 text-sm font-medium transition-colors duration-150",
                   active
-                    ? "text-white border-b-2 border-white"
+                    ? "text-white border-b-2 border-[#F47920]"
                     : "text-white/60 hover:text-white hover:bg-white/10"
                 )}
               >

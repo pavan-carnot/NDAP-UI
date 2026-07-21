@@ -6,9 +6,9 @@ import { SidebarProvider } from "@/lib/sidebar-context";
 import { LanguageProvider } from "@/lib/language-context";
 
 export const metadata: Metadata = {
-  title: "icarKno – Context-aware Conversational AI",
+  title: "IHFC – Context-aware Conversational AI",
   description:
-    "icarKno — Context-aware conversational AI with multi-domain expertise integration. Powered by Carnot Research.",
+    "IHFC — Context-aware conversational AI with multi-domain expertise integration. Technology Innovation Hub of IIT Delhi.",
   icons: { icon: "/favicon.ico" },
 };
 

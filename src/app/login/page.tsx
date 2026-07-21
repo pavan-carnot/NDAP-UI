@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { login, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -34,7 +35,7 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex flex-col relative overflow-hidden"
-      style={{ background: "linear-gradient(150deg, #001845 0%, #002d72 45%, #1a56a0 100%)" }}
+      style={{ background: "linear-gradient(150deg, #1B5E20 0%, #2E7D32 50%, #E65C00 100%)" }}
     >
 
       {/* Main card area */}
@@ -49,10 +50,19 @@ export default function LoginPage() {
               boxShadow: "0 25px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.15)",
             }}
           >
-            <div className="px-8 pt-8 pb-6">
-              <h2 className="text-center font-bold text-2xl mb-1 tracking-tight" style={{ color: "#003087" }}>
-                icarKno<sup className="text-[10px] font-semibold text-black align-super ml-0.5">TM</sup>
-              </h2>
+            {/* Black top section */}
+            <div className="px-8 py-6 flex justify-center" style={{ background: "#111111" }}>
+              <Image
+                src="/ihfc.webp"
+                alt="IHFC"
+                width={160}
+                height={80}
+                className="object-contain"
+                priority
+              />
+            </div>
+
+            <div className="px-8 pt-6 pb-6">
               <p className="text-center text-gray-400 text-xs mb-7 tracking-wide">
                 Sign in to continue
               </p>
@@ -75,7 +85,7 @@ export default function LoginPage() {
                       required
                       autoComplete="username"
                       placeholder="Enter your username"
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
                       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                     />
                   </div>
@@ -98,7 +108,7 @@ export default function LoginPage() {
                       required
                       autoComplete="current-password"
                       placeholder="Enter your password"
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                      className="w-full border border-gray-200 rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
                       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                     />
                     <button
@@ -136,17 +146,17 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full text-white rounded-xl py-3 text-sm font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                   style={{
-                    background: "linear-gradient(135deg, #001845 0%, #003087 50%, #1a56a0 100%)",
-                    boxShadow: "0 4px 16px rgba(0,48,135,0.4)",
+                    background: "linear-gradient(135deg, #E65C00 0%, #F47920 50%, #2E7D32 100%)",
+                    boxShadow: "0 4px 16px rgba(230,92,0,0.4)",
                   }}
                   onMouseEnter={(e) => {
                     if (!loading) {
-                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(0,48,135,0.55)";
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(230,92,0,0.55)";
                       (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(0,48,135,0.4)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(230,92,0,0.4)";
                     (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
                   }}
                 >
@@ -176,7 +186,7 @@ export default function LoginPage() {
                 <svg viewBox="0 0 16 16" className="w-3 h-3 text-gray-400" fill="currentColor">
                   <path d="M8 1a5 5 0 00-5 5v1H2a1 1 0 00-1 1v6a1 1 0 001 1h12a1 1 0 001-1V8a1 1 0 00-1-1h-1V6a5 5 0 00-5-5zm3 6H5V6a3 3 0 016 0v1z" />
                 </svg>
-                Secure Access &nbsp;·&nbsp; iCARKNO
+                Secure Access &nbsp;·&nbsp; IHFC
               </p>
             </div>
           </div>
