@@ -1,5 +1,5 @@
 export const STATIC_CREDENTIALS = [
-  { username: "admin@ihfc.in", password: "Research@2026" },
+  { username: "admin@ihfciitd.com", password: "IITdelhi#2026" },
 ];
 
 export function login(username: string, password: string): boolean {
