@@ -131,6 +131,34 @@ export async function resetSession(sessionId: string): Promise<void> {
   });
 }
 
+export async function approveSpeechPlan(
+  planId: string,
+  userFeedback = "",
+  userRole = "speechwriter"
+): Promise<{ plan_id: string; status: string; final_speech: string; outline_used: unknown }> {
+  return json(
+    await fetch(`${BASE}/speech/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_id: planId, user_feedback: userFeedback, user_role: userRole }),
+    })
+  );
+}
+
+export async function reviseSpeechPlan(
+  planId: string,
+  userFeedback: string,
+  userRole = "speechwriter"
+): Promise<{ plan_id: string; status: string; outline_plan: unknown; message: string }> {
+  return json(
+    await fetch(`${BASE}/speech/revise`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_id: planId, user_feedback: userFeedback, user_role: userRole }),
+    })
+  );
+}
+
 // ── Map / Spatial Analytics ────────────────────────────────────────────────
 
 export interface MapDataset {

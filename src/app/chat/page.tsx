@@ -11,6 +11,8 @@ import {
   getHealth,
   getRecentQueries,
   resetSession,
+  approveSpeechPlan,
+  reviseSpeechPlan,
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
@@ -576,7 +578,20 @@ interface PdfTarget { url: string; page: number; filename: string; }
 const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|states?|chart|visual)\b|\bon (a |the )?map\b/i;
 
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
+function MessageCard({
+  turn,
+  prevTurn,
+  onOpenPdf,
+  onSpeechApproved,
+  onSpeechRevised
+}: {
+  turn: ChatTurn;
+  prevTurn?: ChatTurn;
+  onOpenPdf: (t: PdfTarget) => void;
+  onSpeechApproved?: (draftResult: { final_speech: string; plan_id: string }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSpeechRevised?: (revisedResult: any) => void;
+}) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
   
@@ -683,6 +698,44 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
         </div>
       )}
 
+      {/* Stage-1 Speech Outline Approval Gate */}
+      {meta.agent === "speech_planning" && meta.plan_id && (
+        <SpeechApprovalGate
+          planId={meta.plan_id}
+          onApproved={(res) => onSpeechApproved && onSpeechApproved(res)}
+          onRevised={(res) => onSpeechRevised && onSpeechRevised(res)}
+        />
+      )}
+
+      {/* Stage-2 Speech Draft Download Buttons */}
+      {(meta.agent === "speech_planning_draft" || meta.agent === "speech_planning_draft_generated") && (
+        <div className="mt-3.5 p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-blue-900 text-xs font-semibold">
+            <span>🎙️ Final Speech Draft Ready</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/speech/download?file_id=${meta.plan_id}&format=docx`}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm"
+            >
+              <span>📥 Download Word (.docx)</span>
+            </a>
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/speech/download?file_id=${meta.plan_id}&format=pdf`}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm"
+            >
+              <span>📥 Download PDF (.pdf)</span>
+            </a>
+          </div>
+        </div>
+      )}
+
       <CitationMaps
         citations={mapCitations}
         intentMetric={mapMeta.intent_metric}
@@ -693,6 +746,320 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}
 
       <TracePanel turn={turn} />
+    </div>
+  );
+}
+
+/* ── Stage-1 Speech Outline Approval Gate ────────────────────────── */
+function SpeechApprovalGate({
+  planId,
+  onApproved,
+  onRevised
+}: {
+  planId: string;
+  onApproved: (draftResult: { final_speech: string; plan_id: string }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onRevised: (revisedResult: any) => void;
+}) {
+  const [feedback, setFeedback] = useState("");
+  const [loadingApprove, setLoadingApprove] = useState(false);
+  const [loadingRevise, setLoadingRevise] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
+
+  const handleRevise = async () => {
+    if (!feedback.trim()) return;
+    setLoadingRevise(true);
+    setError(null);
+    try {
+      const res = await reviseSpeechPlan(planId, feedback);
+      setFeedback("");
+      onRevised(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Revision failed.");
+    } finally {
+      setLoadingRevise(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    setLoadingApprove(true);
+    setError(null);
+    try {
+      const res = await approveSpeechPlan(planId, feedback);
+      setApproved(true);
+      onApproved(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Approval failed.");
+    } finally {
+      setLoadingApprove(false);
+    }
+  };
+
+  if (approved) {
+    return (
+      <div className="mt-3 p-3.5 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 font-semibold flex items-center gap-2">
+        <span>✅ Speech outline approved! Full speech draft generated below.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 p-4 border border-amber-300 border-l-4 border-l-amber-500 bg-amber-50 rounded-xl shadow-sm space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
+          <span>⏳ Waiting for User Approval</span>
+        </div>
+        <span className="text-[10px] text-amber-700 font-mono">Plan ID: {planId}</span>
+      </div>
+      <p className="text-xs text-amber-800">
+        Please review the proposed narrative arc, section timing breakdown, and supporting evidence above. You can provide feedback and request revisions, or approve to generate the full speech draft.
+      </p>
+
+      <textarea
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder="Enter revision feedback (e.g., 'Make tone more inspiring', 'Expand Section 2')..."
+        rows={2}
+        className="w-full resize-none bg-white border border-amber-200 rounded-lg p-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-amber-500"
+      />
+
+      {error && <div className="text-xs text-red-600 font-semibold">{error}</div>}
+
+      <div className="flex items-center justify-end gap-2">
+        {feedback.trim() && (
+          <button
+            onClick={handleRevise}
+            disabled={loadingRevise || loadingApprove}
+            className="flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+          >
+            {loadingRevise ? (
+              <span>Regenerating Plan...</span>
+            ) : (
+              <span>🔄 Request Revisions / Regenerate Plan</span>
+            )}
+          </button>
+        )}
+        <button
+          onClick={handleApprove}
+          disabled={loadingRevise || loadingApprove}
+          className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+        >
+          {loadingApprove ? (
+            <span>Generating Full Speech Draft...</span>
+          ) : (
+            <span>✓ Approve Outline & Draft Speech</span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+function SpeechIntentModal({
+  isOpen,
+  onClose,
+  onSubmit
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (formattedPrompt: string) => void;
+}) {
+  const [topic, setTopic] = useState("Economic Growth and Rural Digital Infrastructure");
+  const [speaker, setSpeaker] = useState("Cabinet Minister");
+  const [audience, setAudience] = useState("Policy Analysts & Industry Leaders");
+  const [occasion, setOccasion] = useState("Annual Economic Summit 2026");
+  const [duration, setDuration] = useState("10 minutes");
+  const [tone, setTone] = useState("Visionary and Evidence-Backed");
+  const [requiredMessages, setRequiredMessages] = useState("Highlight GDP 7.2% growth, Jal Jeevan Mission, and UPI transaction volume");
+  const [prohibitedTopics, setProhibitedTopics] = useState("");
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const prompt = `Topic: ${topic.trim()}
+Speaker: ${speaker.trim()}
+Audience: ${audience.trim()}
+Occasion: ${occasion.trim()}
+Duration: ${duration}
+Tone: ${tone}
+${requiredMessages.trim() ? `Required Messages: ${requiredMessages.trim()}\n` : ""}${prohibitedTopics.trim() ? `Prohibited Topics: ${prohibitedTopics.trim()}` : ""}`;
+    
+    onSubmit(prompt.trim());
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 anim-in">
+      <div className="bg-white border border-ndap-border rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Modal Header */}
+        <div className="px-6 py-4 bg-ndap-navy text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🎙️</span>
+            <div>
+              <h3 className="font-bold text-base leading-tight">Speech Planner Parameters</h3>
+              <p className="text-xs text-blue-200">Configure speech intent to search authorized archives & propose a plan</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-blue-200 hover:text-white transition-colors p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs text-gray-800">
+          <div>
+            <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+              Speech Topic / Core Subject *
+            </label>
+            <input
+              type="text"
+              required
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g., Economic Growth and Rural Infrastructure"
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+                Speaker Persona *
+              </label>
+              <select
+                value={speaker}
+                onChange={(e) => setSpeaker(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+              >
+                <option value="Cabinet Minister">Cabinet Minister</option>
+                <option value="State Official / Governor">State Official / Governor</option>
+                <option value="Senior Secretary / Administrator">Senior Secretary / Administrator</option>
+                <option value="Industry Leader / Policy Director">Industry Leader / Policy Director</option>
+                <option value="Official Government Representative">Official Representative</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+                Target Audience *
+              </label>
+              <select
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+              >
+                <option value="Policy Analysts & Industry Leaders">Policy Analysts & Industry Leaders</option>
+                <option value="General Public & Citizens">General Public & Citizens</option>
+                <option value="State Officers & Regional Delegates">State Officers & Delegates</option>
+                <option value="International Summit Delegates">International Summit Delegates</option>
+                <option value="Parliament / Legislative Assembly">Parliament / Legislative Assembly</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+              Occasion / Venue *
+            </label>
+            <input
+              type="text"
+              required
+              value={occasion}
+              onChange={(e) => setOccasion(e.target.value)}
+              placeholder="e.g., Annual Economic Summit 2026"
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+                Target Duration *
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {["5 mins", "10 mins", "15 mins", "20 mins"].map((d) => (
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => setDuration(d)}
+                    className={clsx(
+                      "py-2 text-[11px] font-semibold rounded-lg border text-center transition-all",
+                      duration === d
+                        ? "bg-ndap-navy text-white border-ndap-navy shadow-sm"
+                        : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+                Preferred Tone *
+              </label>
+              <select
+                value={tone}
+                onChange={(e) => setTone(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+              >
+                <option value="Visionary and Evidence-Backed">Visionary & Evidence-Backed</option>
+                <option value="Formal and Policy-Focused">Formal & Policy-Focused</option>
+                <option value="Urgent and Action-Oriented">Urgent & Action-Oriented</option>
+                <option value="Celebratory and Inspiring">Celebratory & Inspiring</option>
+                <option value="Analytical and Metric-Driven">Analytical & Metric-Driven</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+              Required Key Messages / Metrics (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={requiredMessages}
+              onChange={(e) => setRequiredMessages(e.target.value)}
+              placeholder="e.g., Highlight GDP growth, Jal Jeevan Mission, UPI transactions"
+              className="w-full resize-none bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-gray-700 uppercase tracking-wider text-[10px] mb-1.5">
+              Prohibited Topics / Off-Limits (Optional)
+            </label>
+            <input
+              type="text"
+              value={prohibitedTopics}
+              onChange={(e) => setProhibitedTopics(e.target.value)}
+              placeholder="e.g., Specific ongoing litigation or unverified estimates"
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-xl text-xs font-semibold bg-ndap-navy text-white hover:bg-ndap-navyDark transition-colors shadow-sm flex items-center gap-1.5"
+            >
+              <span>🚀 Generate Speech Plan</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -758,6 +1125,7 @@ export default function ChatPage() {
   const recognitionRef = useRef<any>(null);
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [showSpeechModal, setShowSpeechModal] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
@@ -1021,7 +1389,66 @@ export default function ChatPage() {
             <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
-              {turns.map((t, i) => <MessageCard key={t.id} turn={t} prevTurn={turns[i - 1]} onOpenPdf={setPdfPanel} />)}
+              {turns.map((t, i) => (
+                <MessageCard
+                  key={t.id}
+                  turn={t}
+                  prevTurn={turns[i - 1]}
+                  onOpenPdf={setPdfPanel}
+                  onSpeechRevised={(revisedRes) => {
+                    const outline = revisedRes.outline_plan || {};
+                    let md = `# 🎙️ Speech Outline: ${outline.proposed_title || 'Speech Plan'}\n**Central Message:** ${outline.central_message || ''}\n\n---\n## 1. 🧭 7-Stage Narrative Arc\n- **Opening:** ${outline.narrative_arc?.opening || ''}\n- **Context:** ${outline.narrative_arc?.context || ''}\n- **Tension / Problem:** ${outline.narrative_arc?.tension_problem || ''}\n- **Evidence:** ${outline.narrative_arc?.evidence || ''}\n- **Proposal:** ${outline.narrative_arc?.proposal || ''}\n- **Call to Action:** ${outline.narrative_arc?.call_to_action || ''}\n- **Close:** ${outline.narrative_arc?.close || ''}\n\n## 2. ⏱️ Proposed Subtopics & Timing Allocation\n`;
+                    for (const st of outline.subtopics || []) {
+                      md += `- **Section ${st.section_number}: ${st.section_title}** (\`${st.allocated_time}\`) — *${st.purpose}*\n`;
+                    }
+                    md += `\n## 3. 📚 Supporting Evidence Mapped\n`;
+                    for (const ev of outline.supporting_evidence || []) {
+                      md += `- **${ev.claim}** (Source: \`${ev.source_doc}\` | DocID: \`${ev.doc_id}\` | Date: \`${ev.date}\`)\n`;
+                    }
+                    if (outline.assumptions_and_questions) {
+                      md += `\n## ❓ Assumptions & Clarification Questions\n`;
+                      for (const q of outline.assumptions_and_questions) {
+                        md += `- ${q}\n`;
+                      }
+                    }
+                    md += `\n---\n📌 **Outline Review**: Please review the revised speech outline above. Provide optional feedback below or click **[Approve Outline & Draft Speech]** to generate the full speech draft.`;
+
+                    setTurns((prev) => prev.map((turnItem) => turnItem.id === t.id ? {
+                      ...turnItem,
+                      result: {
+                        ...turnItem.result,
+                        answer: md
+                      }
+                    } : turnItem));
+                  }}
+                  onSpeechApproved={(draftRes) => {
+                    setTurns((prev) => [
+                      ...prev,
+                      {
+                        id: crypto.randomUUID(),
+                        query: "Approved Speech Plan & Generated Draft",
+                        result: {
+                          answer: draftRes.final_speech,
+                          chunks: [],
+                          context: "",
+                          meta: {
+                            agent: "speech_planning_draft",
+                            plan_id: draftRes.plan_id,
+                            execution_trace: ["Stage 2 Speech Draft generated successfully from approved outline."],
+                            tokens_in: 600,
+                            tokens_out: 1500,
+                            cost_usd: 0.002,
+                            time_seconds: 2.5,
+                            cached: false,
+                            blocked: false
+                          }
+                        },
+                        timestamp: new Date()
+                      }
+                    ]);
+                  }}
+                />
+              ))}
               {loading && <LiveTrace query={pendingQuery} />}
               <div ref={bottomRef} />
             </div>
@@ -1070,6 +1497,23 @@ export default function ChatPage() {
                 <span>Generate Report</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAgent("speech_planning");
+                  setShowSpeechModal(true);
+                }}
+                disabled={loading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "speech_planning"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                title="Speech Planner Agent"
+              >
+                <span>🎙️</span>
+                <span>Speech Planner</span>
+              </button>
+
               <span className="text-[11px] text-gray-400">
                 {sessionId ? `Session: ${sessionId}` : "New session"}
               </span>
@@ -1100,6 +1544,17 @@ export default function ChatPage() {
           Responses are grounded exclusively in indexed datasets. &nbsp;·&nbsp; IDS Intelligence Platform &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">Carnot Research Pvt Ltd</span>
         </p>
       </div>
+
+      {/* Pre-fed Speech Intent Modal */}
+      <SpeechIntentModal
+        isOpen={showSpeechModal}
+        onClose={() => setShowSpeechModal(false)}
+        onSubmit={(formattedPrompt) => {
+          setShowSpeechModal(false);
+          setSelectedAgent("speech_planning");
+          submitQuery(formattedPrompt);
+        }}
+      />
     </div>
   );
 }
