@@ -156,7 +156,7 @@ function LiveTrace({ query }: { query: string }) {
   return (
     <div className="bg-white border border-ndap-border rounded-xl shadow-card anim-in overflow-hidden">
       <div className="px-4 pt-3.5 pb-3 border-b border-ndap-border"
-        style={{ background: "linear-gradient(135deg,#FFF8F2 0%,#FFF0E6 100%)" }}>
+        style={{ background: "linear-gradient(135deg,#F8F5FC 0%,#F0EAF5 100%)" }}>
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 spin text-ndap-blue flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -174,7 +174,7 @@ function LiveTrace({ query }: { query: string }) {
         <div className="w-full bg-white/70 rounded-full h-1.5 overflow-hidden border border-ndap-border/40">
           <div
             className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${pct}%`, background: "linear-gradient(90deg,#F47920,#FF8C42)" }}
+            style={{ width: `${pct}%`, background: "linear-gradient(90deg,#8B1060,#C9A227)" }}
           />
         </div>
       </div>
@@ -445,7 +445,7 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
     <div className="mt-2 rounded-lg border border-ndap-border overflow-hidden text-xs">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-ndap-sky hover:bg-orange-50 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-ndap-sky hover:bg-purple-50 transition-colors text-left"
       >
         <span className="text-ndap-navy font-semibold tracking-wide uppercase text-[10px]">
           Agent Trace & Diagnostics
@@ -600,7 +600,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
       {/* User bubble */}
       <div className="flex justify-end">
         <div className="max-w-2xl bg-ndap-navy text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-orange-200 mb-1">You</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-yellow-200 mb-1">You</div>
           <div className="text-sm leading-relaxed">{turn.query}</div>
         </div>
       </div>
@@ -621,7 +621,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                 </svg>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                IHFC Analysis
+                IDS Analysis
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -711,14 +711,14 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
     <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-20 h-20 rounded-2xl bg-ndap-sky border-2 border-ndap-border flex items-center justify-center mb-6 shadow-card">
         <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-          <rect width="48" height="48" rx="10" fill="#FFF5EE" />
-          <rect x="8" y="30" width="7" height="10" rx="1.5" fill="#FF9933" />
-          <rect x="20" y="22" width="7" height="18" rx="1.5" fill="#F47920" />
-          <rect x="32" y="14" width="7" height="26" rx="1.5" fill="#1a1a1a" />
-          <polyline points="8,28 20,20 32,12" stroke="#F47920" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <rect width="48" height="48" rx="10" fill="#F8F5FC" />
+          <rect x="8" y="30" width="7" height="10" rx="1.5" fill="#8B1A1A" />
+          <rect x="20" y="22" width="7" height="18" rx="1.5" fill="#8B1060" />
+          <rect x="32" y="14" width="7" height="26" rx="1.5" fill="#5C0A3E" />
+          <polyline points="8,28 20,20 32,12" stroke="#C9A227" strokeWidth="2" fill="none" strokeLinecap="round" />
         </svg>
       </div>
-      <h2 className="text-ndap-navy font-bold text-xl mb-2">Government Dataset Intelligence</h2>
+      <h2 className="text-gray-900 font-bold text-xl mb-2">Government Dataset Intelligence</h2>
       <p className="text-gray-500 text-sm mb-1">Ask questions, draft emails, or generate reports from indexed government datasets.</p>
       <p className="text-gray-400 text-xs mb-8"></p>
 
@@ -729,7 +729,7 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
             <button
               key={q}
               onClick={() => onSample(q)}
-              className="text-left text-sm text-ndap-blue bg-white border border-ndap-border rounded-xl px-4 py-3 hover:bg-ndap-sky hover:border-ndap-blue transition-colors shadow-sm"
+              className="text-left text-sm text-gray-800 bg-white border border-ndap-border rounded-xl px-4 py-3 hover:bg-ndap-sky hover:border-ndap-blue transition-colors shadow-sm"
             >
               <span>{q}</span>
             </button>
@@ -941,7 +941,7 @@ export default function ChatPage() {
                           <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                         </svg>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-700 group-hover:text-ndap-navy leading-snug break-words whitespace-normal transition-colors">{rq.text}</p>
+                          <p className="text-xs text-gray-700 group-hover:text-gray-900 leading-snug break-words whitespace-normal transition-colors">{rq.text}</p>
                           {ts && <p className="text-[10px] text-gray-400 mt-1">{ts}</p>}
                         </div>
                         <svg className="w-3 h-3 flex-shrink-0 text-gray-200 group-hover:text-ndap-blue opacity-0 group-hover:opacity-100 transition-all mt-0.5" viewBox="0 0 20 20" fill="currentColor">
@@ -1097,7 +1097,7 @@ export default function ChatPage() {
         </div>
 
         <p className="text-center text-[10px] text-gray-400 mt-2">
-          Responses are grounded exclusively in indexed datasets. &nbsp;·&nbsp; IHFC Intelligence Platform &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">IHFC<sup className="text-[8px]">TM</sup></span>
+          Responses are grounded exclusively in indexed datasets. &nbsp;·&nbsp; IDS Intelligence Platform &nbsp;·&nbsp; Powered by <span className="text-gray-500 font-medium">Carnot Research Pvt Ltd</span>
         </p>
       </div>
     </div>

@@ -35,8 +35,17 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex flex-col relative overflow-hidden"
-      style={{ background: "linear-gradient(150deg, #1B5E20 0%, #2E7D32 50%, #E65C00 100%)" }}
+      style={{ background: "linear-gradient(150deg, #5C0A3E 0%, #8B1060 55%, #8B1A1A 100%)" }}
     >
+      {/* Subtle pattern overlay */}
+      <div
+        className="absolute inset-0 opacity-5 pointer-events-none"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
       {/* Main card area */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-10">
@@ -47,33 +56,47 @@ export default function LoginPage() {
             className="rounded-2xl overflow-hidden"
             style={{
               background: "rgba(255,255,255,0.97)",
-              boxShadow: "0 25px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.15)",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12)",
             }}
           >
-            {/* Black top section */}
-            <div className="px-8 py-6 flex justify-center" style={{ background: "#111111" }}>
+            {/* Navy top section */}
+            <div className="px-8 py-6 flex flex-col items-center gap-2" style={{ background: "#8B1060" }}>
               <Image
-                src="/ihfc.webp"
-                alt="IHFC"
-                width={160}
-                height={80}
+                src="/idslogo-new.png"
+                alt="IDS"
+                width={72}
+                height={72}
                 className="object-contain"
                 priority
               />
+              <div className="text-center mt-1">
+                <p className="text-[#C9A227] font-bold tracking-wide" style={{ fontSize: "13px" }}>
+                  एकीकृत रक्षा स्टाफ
+                </p>
+                <p className="text-white font-extrabold tracking-widest uppercase" style={{ fontSize: "14px", letterSpacing: "0.1em" }}>
+                  Integrated Defence Staff
+                </p>
+                <p className="text-white/50 font-medium" style={{ fontSize: "10px", marginTop: "2px" }}>
+                  Ministry of Defence, Government of India
+                </p>
+              </div>
             </div>
+
+            {/* Gold accent bar */}
+            <div style={{ height: "3px", background: "linear-gradient(90deg, #8B1A1A, #C9A227, #8B1A1A)" }} />
 
             <div className="px-8 pt-6 pb-6">
               <p className="text-center text-gray-400 text-xs mb-7 tracking-wide">
-                Sign in to continue
+                Authorised Personnel Access Only
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 tracking-wide uppercase">
+                  <label className="block text-xs font-semibold text-[#8B1060] mb-1.5 tracking-wide uppercase">
                     Username
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B1060]/40">
                       <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
                         <path d="M10 10a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 1114 0H3z" />
                       </svg>
@@ -85,18 +108,20 @@ export default function LoginPage() {
                       required
                       autoComplete="username"
                       placeholder="Enter your username"
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                      className="w-full border border-[#D1D9E6] rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none transition"
                       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#8B1060"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(92,32,96,0.12)"; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = "#D1D9E6"; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 tracking-wide uppercase">
+                  <label className="block text-xs font-semibold text-[#8B1060] mb-1.5 tracking-wide uppercase">
                     Password
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B1060]/40">
                       <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
@@ -108,8 +133,10 @@ export default function LoginPage() {
                       required
                       autoComplete="current-password"
                       placeholder="Enter your password"
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                      className="w-full border border-[#D1D9E6] rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none transition"
                       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#8B1060"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(92,32,96,0.12)"; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = "#D1D9E6"; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; }}
                     />
                     <button
                       type="button"
@@ -146,17 +173,17 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full text-white rounded-xl py-3 text-sm font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                   style={{
-                    background: "linear-gradient(135deg, #E65C00 0%, #F47920 50%, #2E7D32 100%)",
-                    boxShadow: "0 4px 16px rgba(230,92,0,0.4)",
+                    background: "linear-gradient(135deg, #5C0A3E 0%, #8B1060 50%, #8B1A1A 100%)",
+                    boxShadow: "0 4px 16px rgba(92,32,96,0.4)",
                   }}
                   onMouseEnter={(e) => {
                     if (!loading) {
-                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(230,92,0,0.55)";
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(92,32,96,0.55)";
                       (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(230,92,0,0.4)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(92,32,96,0.4)";
                     (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
                   }}
                 >
@@ -181,12 +208,12 @@ export default function LoginPage() {
             </div>
 
             {/* Footer inside card */}
-            <div className="px-8 py-3 text-center" style={{ background: "#fafafa", borderTop: "1px solid #f0f0f0" }}>
+            <div className="px-8 py-3 text-center" style={{ background: "#fafafa", borderTop: "1px solid #E8EDF5" }}>
               <p className="text-[10px] text-gray-400 tracking-wide flex items-center justify-center gap-1.5">
                 <svg viewBox="0 0 16 16" className="w-3 h-3 text-gray-400" fill="currentColor">
                   <path d="M8 1a5 5 0 00-5 5v1H2a1 1 0 00-1 1v6a1 1 0 001 1h12a1 1 0 001-1V8a1 1 0 00-1-1h-1V6a5 5 0 00-5-5zm3 6H5V6a3 3 0 016 0v1z" />
                 </svg>
-                Secure Access &nbsp;·&nbsp; IHFC
+                Secure Access &nbsp;·&nbsp; Integrated Defence Staff
               </p>
             </div>
           </div>

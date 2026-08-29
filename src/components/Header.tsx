@@ -82,141 +82,55 @@ export default function Header() {
   return (
     <header className="w-full sticky top-0 z-50 flex-shrink-0">
 
-      {/* ── Brand bar ─────────────────────────── */}
-      <div className="relative overflow-hidden bg-[#F9F9F9] border-b border-[#E5E5E5] shadow-sm">
+      {/* ── Brand bar — clean, logo + centered title ── */}
+      <div className="bg-[#F5EDD5] border-b border-[#C9B88A]">
+        <div className="max-w-screen-xl mx-auto px-4 py-1 flex items-center">
 
-        <div className="relative max-w-screen-xl mx-auto px-6 py-3 flex items-center gap-4">
-
-          {/* Logo + name + divider + tagline */}
-          <Link href="/chat" className="flex items-center gap-3 flex-shrink-0">
+          {/* Left — IDS logo */}
+          <Link href="/chat" className="flex-shrink-0 flex items-center justify-center" style={{ width: 48, height: 48 }}>
             <Image
-              src="/ihfc single.png"
-              alt="IHFC"
-              width={52}
-              height={52}
+              src="/idslogo-new.png"
+              alt="IDS Emblem"
+              width={48}
+              height={48}
               className="object-contain"
+              style={{ transform: "scale(1.5)", transformOrigin: "center" }}
               priority
             />
-            <span className="text-[#1a1a1a] font-bold tracking-tight" style={{ fontSize: "42px", lineHeight: "52px" }}>IHFC</span>
-            <div className="w-px h-10 bg-[#1a1a1a]/30 mx-1" />
-            <div className="text-[#1a1a1a] leading-snug">
-              <div className="text-sm font-semibold">Technology</div>
-              <div className="text-sm font-semibold">Innovation Hub</div>
-              <div className="text-sm font-semibold">of IIT Delhi</div>
-            </div>
           </Link>
 
-          {/* Right controls */}
-          <div className="ml-auto flex items-center gap-2">
-
-            {/* Language */}
-            <div ref={langRef} className="relative">
-              <button
-                onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1.5 text-[#1a1a1a] text-[12px] font-medium px-2.5 py-1.5 hover:bg-[#E5E5E5] rounded-lg transition-colors border border-[#E5E5E5]"
-              >
-                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                  <circle cx="10" cy="10" r="8"/>
-                  <ellipse cx="10" cy="10" rx="3.5" ry="8"/>
-                  <line x1="2" y1="10" x2="18" y2="10"/>
-                  <line x1="3.5" y1="6" x2="16.5" y2="6"/>
-                  <line x1="3.5" y1="14" x2="16.5" y2="14"/>
-                </svg>
-                <span>{selectedLang.label.split(" — ")[0]}</span>
-                <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-
-              {langOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-[#E5E5E5] rounded-xl shadow-xl z-[200] overflow-hidden">
-                  <div className="max-h-64 overflow-y-auto py-1">
-                    {LANGUAGES.map((lang, i) => (
-                      <div
-                        key={lang.code}
-                        onClick={() => {
-                          if (!lang.enabled) return;
-                          setLanguage(lang.code);
-                          setLangOpen(false);
-                        }}
-                        className={clsx(
-                          "px-4 py-2 text-xs",
-                          i === 1 && "border-b border-[#E5E5E5] mb-1",
-                          lang.enabled
-                            ? clsx(
-                                "cursor-pointer transition-colors",
-                                selectedLang.code === lang.code
-                                  ? "text-[#F47920] font-semibold bg-[#FFF5EE]"
-                                  : "text-gray-700 hover:bg-[#F9F9F9]"
-                              )
-                            : "text-gray-300 cursor-default"
-                        )}
-                      >
-                        {lang.label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* Centered title */}
+          <div className="flex-1 text-center" style={{ lineHeight: "1.25" }}>
+            <div className="text-[#1E1B18] font-bold" style={{ fontSize: "22px", letterSpacing: "0.06em" }}>
+              एकीकृत रक्षा स्टाफ
             </div>
-
-            {/* Font size */}
-            <div className="flex items-center border border-[#E5E5E5] rounded-lg overflow-hidden">
-              {(["small", "normal", "large"] as FontSize[]).map((size, i) => (
-                <button
-                  key={size}
-                  onClick={() => setFontSize(size)}
-                  className={clsx(
-                    "w-7 h-7 flex items-center justify-center transition-colors",
-                    fontSize === size ? "bg-[#1a1a1a] text-white font-bold" : "text-[#1a1a1a]/60 hover:bg-[#E5E5E5]",
-                    i < 2 && "border-r border-[#E5E5E5]"
-                  )}
-                  style={{ fontSize: size === "large" ? "13px" : size === "normal" ? "11px" : "9px", fontWeight: fontSize === size ? 700 : 500 }}
-                  title={size === "large" ? "Large text" : size === "normal" ? "Default text" : "Small text"}
-                >
-                  A
-                </button>
-              ))}
+            <div className="text-[#1E1B18] font-extrabold uppercase" style={{ fontSize: "20px", letterSpacing: "0.04em" }}>
+              Integrated Defence Staff
             </div>
-
-            <div className="w-px h-5 bg-[#E5E5E5] mx-1" />
-
-            {/* User */}
-            {authUser && (
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#F47920] flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-[12px] font-bold uppercase">
-                    {authUser[0]}
-                  </span>
-                </div>
-                <span className="text-[13px] font-medium text-[#1a1a1a] capitalize hidden sm:block">
-                  {authUser}
-                </span>
-                <button
-                  onClick={() => { logout(); router.replace("/login"); }}
-                  className="text-[#1a1a1a]/30 hover:text-red-500 transition-colors ml-1"
-                  title="Sign out"
-                >
-                  <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                    <path d="M13 7l3 3m0 0l-3 3m3-3H8m4-7H5a2 2 0 00-2 2v10a2 2 0 002 2h7" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-              </div>
-            )}
           </div>
 
+          {/* Right — National Emblem */}
+          <div className="flex-shrink-0">
+            <Image
+              src="/national_emblem.png"
+              alt="National Emblem of India"
+              width={44}
+              height={44}
+              className="object-contain"
+            />
+          </div>
         </div>
       </div>
 
-      {/* ── Nav tab bar ── */}
-      <div className="bg-[#111111]">
-        <div className="max-w-screen-xl mx-auto px-4 flex items-center gap-1">
+      {/* ── Nav bar — tabs on left, controls on right ── */}
+      <div style={{ background: "#8B1060" }}>
+        <div className="max-w-screen-xl mx-auto px-4 flex items-center">
 
           {/* Sidebar toggle — only on /chat */}
           {path.startsWith("/chat") && (
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all flex-shrink-0 mr-2"
+              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all flex-shrink-0 mr-1"
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -225,6 +139,7 @@ export default function Header() {
             </button>
           )}
 
+          {/* Nav links */}
           {NAV_LINKS.map((link) => {
             const active = path.startsWith(link.href);
             return (
@@ -232,16 +147,121 @@ export default function Header() {
                 key={link.href}
                 href={link.href}
                 className={clsx(
-                  "relative px-4 py-3 text-sm font-medium transition-colors duration-150",
+                  "relative px-4 py-2 text-sm font-medium transition-colors duration-150 whitespace-nowrap",
                   active
-                    ? "text-white border-b-2 border-[#F47920]"
-                    : "text-white/60 hover:text-white hover:bg-white/10"
+                    ? "text-white border-b-2 border-[#C9A227]"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 )}
               >
                 {link.label}
               </Link>
             );
           })}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* ── Right controls ── */}
+
+          {/* Language */}
+          <div ref={langRef} className="relative">
+            <button
+              onClick={() => setLangOpen((o) => !o)}
+              className="flex items-center gap-1.5 text-white/80 text-[12px] font-medium px-2.5 py-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                <circle cx="10" cy="10" r="8"/>
+                <ellipse cx="10" cy="10" rx="3.5" ry="8"/>
+                <line x1="2" y1="10" x2="18" y2="10"/>
+                <line x1="3.5" y1="6" x2="16.5" y2="6"/>
+                <line x1="3.5" y1="14" x2="16.5" y2="14"/>
+              </svg>
+              <span>{selectedLang.label.split(" — ")[0]}</span>
+              <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {langOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-[#D1D9E6] rounded-xl shadow-xl z-[200] overflow-hidden">
+                <div className="max-h-64 overflow-y-auto py-1">
+                  {LANGUAGES.map((lang, i) => (
+                    <div
+                      key={lang.code}
+                      onClick={() => {
+                        if (!lang.enabled) return;
+                        setLanguage(lang.code);
+                        setLangOpen(false);
+                      }}
+                      className={clsx(
+                        "px-4 py-2 text-xs",
+                        i === 1 && "border-b border-[#D1D9E6] mb-1",
+                        lang.enabled
+                          ? clsx(
+                              "cursor-pointer transition-colors",
+                              selectedLang.code === lang.code
+                                ? "text-[#8B1060] font-semibold bg-[#F8F5FC]"
+                                : "text-gray-700 hover:bg-[#F8F5FC]"
+                            )
+                          : "text-gray-300 cursor-default"
+                      )}
+                    >
+                      {lang.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Font size */}
+          <div className="flex items-center rounded-lg overflow-hidden border border-white/20">
+            {(["small", "normal", "large"] as FontSize[]).map((size, i) => (
+              <button
+                key={size}
+                onClick={() => setFontSize(size)}
+                className={clsx(
+                  "w-7 h-7 flex items-center justify-center transition-colors",
+                  fontSize === size ? "bg-white text-[#8B1060] font-bold" : "text-white/60 hover:bg-white/10",
+                  i < 2 && "border-r border-white/20"
+                )}
+                style={{ fontSize: size === "large" ? "13px" : size === "normal" ? "11px" : "9px", fontWeight: fontSize === size ? 700 : 500 }}
+                title={size === "large" ? "Large text" : size === "normal" ? "Default text" : "Small text"}
+              >
+                A
+              </button>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-white/20 mx-2" />
+
+          {/* User */}
+          {authUser && (
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-[#C9A227] flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-[11px] font-bold uppercase">
+                  {authUser[0]}
+                </span>
+              </div>
+              <span className="text-[12px] font-medium text-white/80 hidden sm:block">
+                {authUser}
+              </span>
+              <button
+                onClick={() => { logout(); router.replace("/login"); }}
+                className="text-white/40 hover:text-red-300 transition-colors ml-1"
+                title="Sign out"
+              >
+                <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path d="M13 7l3 3m0 0l-3 3m3-3H8m4-7H5a2 2 0 00-2 2v10a2 2 0 002 2h7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
 

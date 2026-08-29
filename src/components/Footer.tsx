@@ -1,21 +1,21 @@
 export default function Footer() {
   return (
-    <footer className="bg-[#1a1a1a] text-white mt-auto">
+    <footer style={{ background: "#5C0A3E" }} className="text-white mt-auto">
       <div className="max-w-screen-xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 bg-[#F47920]/20 rounded flex items-center justify-center text-xs font-bold text-[#F47920]">I</div>
-              <span className="font-semibold text-sm">IHFC</span>
+              <div className="w-7 h-7 rounded flex items-center justify-center text-xs font-bold" style={{ background: "rgba(201,162,39,0.2)", color: "#C9A227" }}>I</div>
+              <span className="font-semibold text-sm tracking-wide">Integrated Defence Staff</span>
             </div>
             <p className="text-white/60 text-xs leading-relaxed">
-              Technology Innovation Hub of IIT Delhi — Context-aware conversational AI
-              with multi-domain expertise integration. Powered by IHFC.
+              Ministry of Defence, Government of India — Context-aware conversational AI
+              with multi-domain defence expertise. Authorised access only.
             </p>
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-[#F47920] mb-3">
+            <h4 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#C9A227" }}>
               Platform
             </h4>
             <ul className="space-y-1.5 text-xs text-white/60">
@@ -27,23 +27,23 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-[#F47920] mb-3">
-              IHFC
+            <h4 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#C9A227" }}>
+              IDS
             </h4>
             <ul className="space-y-1.5 text-xs text-white/60">
+              <li>ids.nic.in</li>
+              <li>mod.gov.in</li>
               <li>carnotresearch.com</li>
-              <li>iknow.carnotresearch.com</li>
-              <li>playground.carnotresearch.com</li>
             </ul>
           </div>
         </div>
 
         <div className="border-t border-white/10 mt-6 pt-5 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-white/40 text-[11px]">
-            © 2024 IHFC. All rights reserved.
+            © 2024 Integrated Defence Staff. All rights reserved.
           </p>
           <p className="text-white/40 text-[11px]">
-            IHFC — Powered by IHFC
+            IDS — Ministry of Defence, Government of India
           </p>
         </div>
       </div>

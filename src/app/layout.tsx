@@ -6,9 +6,9 @@ import { SidebarProvider } from "@/lib/sidebar-context";
 import { LanguageProvider } from "@/lib/language-context";
 
 export const metadata: Metadata = {
-  title: "IHFC – Context-aware Conversational AI",
+  title: "IDS – Context-aware Conversational AI",
   description:
-    "IHFC — Context-aware conversational AI with multi-domain expertise integration. Technology Innovation Hub of IIT Delhi.",
+    "Integrated Defence Staff — Context-aware conversational AI with multi-domain defence expertise. Powered by Carnot Research Pvt Ltd.",
   icons: { icon: "/favicon.ico" },
 };
 
