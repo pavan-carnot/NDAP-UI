@@ -131,6 +131,63 @@ export async function resetSession(sessionId: string): Promise<void> {
   });
 }
 
+export async function initSpeechWizard(
+  topic: string,
+  sessionId?: string | null
+): Promise<{ session_id: string; step: string; topic: string; wizard_data: any; message: string }> {
+  return json(
+    await fetch(`${BASE}/speech/wizard/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, session_id: sessionId }),
+    })
+  );
+}
+
+export async function checkSpeechHistoricalRef(
+  topic: string,
+  intent: any,
+  sessionId?: string | null,
+  userRole = "speechwriter"
+): Promise<{
+  session_id: string;
+  step: string;
+  topic: string;
+  intent: any;
+  found_historical_speeches: any[];
+  historical_question: string;
+  options: string[];
+  top_historical_doc?: string;
+}> {
+  return json(
+    await fetch(`${BASE}/speech/wizard/historical_check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, intent, session_id: sessionId, user_role: userRole }),
+    })
+  );
+}
+
+export async function proposeSpeechPlan(
+  intent: any,
+  selectedHistoricalDoc?: string | null,
+  sessionId?: string | null,
+  userRole = "speechwriter"
+): Promise<any> {
+  return json(
+    await fetch(`${BASE}/speech/plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...intent,
+        selected_historical_doc: selectedHistoricalDoc,
+        session_id: sessionId,
+        user_role: userRole,
+      }),
+    })
+  );
+}
+
 export async function approveSpeechPlan(
   planId: string,
   userFeedback = "",
@@ -155,6 +212,22 @@ export async function reviseSpeechPlan(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan_id: planId, user_feedback: userFeedback, user_role: userRole }),
+    })
+  );
+}
+
+export async function searchSpeechArchive(
+  query = "",
+  speaker = "",
+  theme = "",
+  year = "",
+  userRole = "speechwriter"
+): Promise<{ speeches: any[]; count: number }> {
+  return json(
+    await fetch(`${BASE}/speech/archive/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, speaker, theme, year, user_role: userRole }),
     })
   );
 }

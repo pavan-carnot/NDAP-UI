@@ -13,19 +13,26 @@ export interface CalcEntry {
 }
 
 export interface QueryMeta {
-  tokens_in: number;
-  tokens_out: number;
-  cost_usd: number;
-  time_seconds: number;
-  calc_log: CalcEntry[];
-  blocked: boolean;
+  tokens_in?: number;
+  tokens_out?: number;
+  cost_usd?: number;
+  time_seconds?: number;
+  calc_log?: CalcEntry[];
+  blocked?: boolean;
   reason?: string;
   retrieval_query_used?: string;
-  cached: boolean;
-  execution_trace: string[];
+  cached?: boolean;
+  execution_trace?: string[];
   intent_metric?: string;
   focus_states?: string[];
   agent?: string;
+  step?: string;
+  topic?: string;
+  wizard_data?: any;
+  intent?: any;
+  plan_id?: string;
+  status?: string;
+  hard_gate_active?: boolean;
 }
 
 export interface QueryResult {

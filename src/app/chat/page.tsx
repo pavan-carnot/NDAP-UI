@@ -13,6 +13,10 @@ import {
   resetSession,
   approveSpeechPlan,
   reviseSpeechPlan,
+  initSpeechWizard,
+  checkSpeechHistoricalRef,
+  proposeSpeechPlan,
+  searchSpeechArchive,
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
@@ -62,8 +66,8 @@ function buildInlineCitations(
 
     // Also strip any leftover markdown citation link syntax [1](#cite-0) or [1] or [cite-0]
     result = result.replace(/\[\d+\]\(#cite-\d+\)/g, "")
-                   .replace(/\[\d+\]/g, "")
-                   .replace(/#cite-\d+/g, "");
+      .replace(/\[\d+\]/g, "")
+      .replace(/#cite-\d+/g, "");
 
     // Fallback: use chunk sources if nothing matched
     if (citations.length === 0) {
@@ -482,8 +486,8 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
           <div className="p-4">
             {tab === "steps" && (
               <ol className="space-y-1.5">
-                {meta.execution_trace?.length > 0 ? (
-                  meta.execution_trace.map((step, i) => {
+                {(meta.execution_trace?.length ?? 0) > 0 ? (
+                  (meta.execution_trace ?? []).map((step, i) => {
                     const isNode = step.startsWith("[");
                     const isReason = step.includes("💭");
                     return (
@@ -583,7 +587,8 @@ function MessageCard({
   prevTurn,
   onOpenPdf,
   onSpeechApproved,
-  onSpeechRevised
+  onSpeechRevised,
+  onSpeechPlanGenerated
 }: {
   turn: ChatTurn;
   prevTurn?: ChatTurn;
@@ -591,10 +596,12 @@ function MessageCard({
   onSpeechApproved?: (draftResult: { final_speech: string; plan_id: string }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSpeechRevised?: (revisedResult: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSpeechPlanGenerated?: (planRes: any) => void;
 }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
-  
+
   const isEmail = meta.agent === "draft_email" || answer.startsWith("**Subject:**") || answer.startsWith("Subject:");
   const { processedText, citations } = buildInlineCitations(answer, chunks, isEmail);
 
@@ -698,6 +705,83 @@ function MessageCard({
         </div>
       )}
 
+      {/* Wizard Step 1: Parameter Setup Card */}
+      {meta.agent === "speech_planning" && meta.step === "PARAM_WIZARD" && (
+        <SpeechParamWizardCard
+          topic={meta.topic || turn.query}
+          wizardData={meta.wizard_data}
+          sessionId={turn.result.session_id}
+          onHistoricalRefFound={(res) => {
+            if (onSpeechRevised) {
+              onSpeechRevised({
+                answer: `### 📜 Historical Reference Discovery\n\n${res.historical_question}`,
+                chunks: [],
+                meta: {
+                  agent: "speech_planning",
+                  step: "HISTORICAL_REF_DISCOVERY",
+                  topic: meta.topic || turn.query,
+                  intent: res.intent,
+                  recommended_speeches: res.recommended_speeches || [],
+                  historical_question: res.historical_question,
+                }
+              });
+            }
+          }}
+        />
+      )}
+
+      {/* Wizard Step 2: Historical Reference Discovery Card */}
+      {meta.agent === "speech_planning" && meta.step === "HISTORICAL_REF_DISCOVERY" && (
+        <SpeechHistoricalRefCard
+          topic={meta.topic || turn.query}
+          intent={meta.intent}
+          historicalData={meta}
+          sessionId={turn.result.session_id}
+          onPlanGenerated={(res) => {
+            if (onSpeechPlanGenerated) {
+              onSpeechPlanGenerated(res);
+            } else if (onSpeechRevised) {
+              const outline = res.outline_plan || {};
+              const mdLines = [
+                `# 🎙️ Speech Outline: ${outline.proposed_title || 'Speech Plan'}`,
+                `**Central Message:** ${outline.central_message || ''}\n`,
+                "---",
+                "## 1. 🧭 7-Stage Narrative Arc",
+                `- **Opening:** ${outline.narrative_arc?.opening || ''}`,
+                `- **Context:** ${outline.narrative_arc?.context || ''}`,
+                `- **Tension / Problem:** ${outline.narrative_arc?.tension_problem || ''}`,
+                `- **Evidence:** ${outline.narrative_arc?.evidence || ''}`,
+                `- **Proposal:** ${outline.narrative_arc?.proposal || ''}`,
+                `- **Call to Action:** ${outline.narrative_arc?.call_to_action || ''}`,
+                `- **Close:** ${outline.narrative_arc?.close || ''}\n`,
+                "## 2. ⏱️ Proposed Subtopics & Timing Allocation"
+              ];
+              (outline.subtopics || []).forEach((st: any) => {
+                mdLines.push(`- **Section ${st.section_number}: ${st.section_title}** (\`${st.allocated_time}\`) — *${st.purpose}*`);
+              });
+              mdLines.push("\n## 3. 📚 Supporting Evidence Mapped");
+              (outline.supporting_evidence || []).forEach((ev: any) => {
+                mdLines.push(`- **${ev.claim}** (Source: \`${ev.source_doc}\` | DocID: \`${ev.doc_id}\` | Date: \`${ev.date}\`)`);
+              });
+              mdLines.push("\n---\n📌 **Outline Review**: Please review the proposed speech outline above. Provide optional feedback below and click **[Approve Outline & Draft Speech]** to generate the full speech draft.");
+
+              onSpeechRevised({
+                answer: mdLines.join("\n"),
+                chunks: (outline.supporting_evidence || []).map((ev: any) => ({
+                  source: ev.source_doc, page: "1", score: 0.0, search_type: "speech_retrieval", text: ev.claim
+                })),
+                meta: {
+                  agent: "speech_planning",
+                  plan_id: res.plan_id,
+                  status: "OUTLINE_PROPOSED",
+                  hard_gate_active: true
+                }
+              });
+            }
+          }}
+        />
+      )}
+
       {/* Stage-1 Speech Outline Approval Gate */}
       {meta.agent === "speech_planning" && meta.plan_id && (
         <SpeechApprovalGate
@@ -746,6 +830,507 @@ function MessageCard({
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}
 
       <TracePanel turn={turn} />
+    </div>
+  );
+}
+
+/* ── Speech Wizard Step 1: Parameter Setup Card (Sequential Stepper) ── */
+function SpeechParamWizardCard({
+  topic,
+  wizardData,
+  sessionId,
+  onHistoricalRefFound
+}: {
+  topic: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wizardData: any;
+  sessionId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onHistoricalRefFound: (res: any) => void;
+}) {
+  const [stepIndex, setStepIndex] = useState(0); // 0 = Tone, 1 = Duration, 2 = Audience, 3 = Speaker
+
+  const [selectedTone, setSelectedTone] = useState(wizardData?.tone_options?.[0] || "(Recommended) Visionary & Inspiring");
+  const [customTone, setCustomTone] = useState("");
+
+  const [selectedDuration, setSelectedDuration] = useState(wizardData?.duration_options?.[0] || "(Recommended) 10 Minutes (Standard Address)");
+  const [customDuration, setCustomDuration] = useState("");
+
+  const [selectedAudience, setSelectedAudience] = useState(wizardData?.audience_options?.[0] || "(Recommended) General Public & Stakeholders");
+  const [customAudience, setCustomAudience] = useState("");
+
+  const [selectedSpeaker, setSelectedSpeaker] = useState(wizardData?.speaker_options?.[0] || "(Recommended) Official Government Speaker");
+  const [customSpeaker, setCustomSpeaker] = useState("");
+
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const finalTone = customTone.trim() || selectedTone.replace("(Recommended) ", "").trim();
+  const finalDuration = customDuration.trim() || selectedDuration.replace("(Recommended) ", "").trim();
+  const finalAudience = customAudience.trim() || selectedAudience.replace("(Recommended) ", "").trim();
+  const finalSpeaker = customSpeaker.trim() || selectedSpeaker.replace("(Recommended) ", "").trim();
+
+  const handleNext = async () => {
+    if (stepIndex < 3) {
+      setStepIndex(stepIndex + 1);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const intent = {
+        topic,
+        tone: finalTone,
+        duration: finalDuration,
+        audience: finalAudience,
+        speaker: finalSpeaker,
+        objective: customInstructions ? `Focus: ${customInstructions}` : "Highlight key milestones and future vision",
+      };
+
+      const res = await checkSpeechHistoricalRef(topic, intent, sessionId);
+      onHistoricalRefFound(res);
+    } catch (e: any) {
+      alert(`Error searching historical speeches: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stepsInfo = [
+    {
+      label: "Question 1 of 4: Tone",
+      question: `What tone would you like for this speech on "${topic}"?`,
+      options: wizardData?.tone_options || [
+        "(Recommended) Visionary & Inspiring",
+        "Policy & Metric-Driven",
+        "Urgent & Action-Oriented",
+        "Formal & Milestone Address"
+      ],
+      selected: selectedTone,
+      setSelected: setSelectedTone,
+      customVal: customTone,
+      setCustomVal: setCustomTone,
+      customPlaceholder: "Or write custom tone (e.g. Hopeful, Encouraging)..."
+    },
+    {
+      label: "Question 2 of 4: Target Duration",
+      question: "What is the target duration for the speech?",
+      options: wizardData?.duration_options || [
+        "(Recommended) 10 Minutes (Standard Address)",
+        "5 Minutes (Key Briefing)",
+        "15 Minutes (Keynote & Vision Speech)"
+      ],
+      selected: selectedDuration,
+      setSelected: setSelectedDuration,
+      customVal: customDuration,
+      setCustomVal: setCustomDuration,
+      customPlaceholder: "Or write custom duration (e.g. 7 Minutes)..."
+    },
+    {
+      label: "Question 3 of 4: Target Audience",
+      question: "Who is the primary target audience for this address?",
+      options: wizardData?.audience_options || [
+        "(Recommended) General Public & Stakeholders",
+        "Policy Makers & Senior Leadership",
+        "Industry Leaders & Investors"
+      ],
+      selected: selectedAudience,
+      setSelected: setSelectedAudience,
+      customVal: customAudience,
+      setCustomVal: setCustomAudience,
+      customPlaceholder: "Or write custom audience (e.g. Foreign Dignitaries)..."
+    },
+    {
+      label: "Question 4 of 4: Speaker Designation",
+      question: "What is the official designation of the speaker?",
+      options: wizardData?.speaker_options || [
+        "(Recommended) Official Government Speaker",
+        "Ministry Spokesperson / Department Head"
+      ],
+      selected: selectedSpeaker,
+      setSelected: setSelectedSpeaker,
+      customVal: customSpeaker,
+      setCustomVal: setCustomSpeaker,
+      customPlaceholder: "Or write custom speaker (e.g. Prime Minister)..."
+    }
+  ];
+
+  const currentStep = stepsInfo[stepIndex];
+
+  return (
+    <div className="mt-3 p-4 bg-purple-50/90 border border-purple-200 rounded-xl space-y-3.5 shadow-sm anim-in text-xs">
+      {/* Top Stepper Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
+        <div className="flex items-center gap-2 text-purple-950 font-bold text-xs">
+          <span className="text-base">🎙️</span>
+          <span>{currentStep.label}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {[0, 1, 2, 3].map((idx) => (
+            <div
+              key={idx}
+              className={`h-2 rounded-full transition-all ${idx === stepIndex ? "bg-purple-700 w-5" : idx < stepIndex ? "bg-purple-400 w-2" : "bg-purple-200 w-2"
+                }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Summary Chips of Previous Selections */}
+      {stepIndex > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {stepIndex > 0 && <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-medium">Tone: {finalTone}</span>}
+          {stepIndex > 1 && <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-medium">Duration: {finalDuration}</span>}
+          {stepIndex > 2 && <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-medium">Audience: {finalAudience}</span>}
+        </div>
+      )}
+
+      {/* Question Text */}
+      <p className="text-xs text-purple-950 font-semibold leading-relaxed">
+        {currentStep.question}
+      </p>
+
+      {/* Multiple-Choice Options */}
+      <div className="space-y-1.5">
+        {currentStep.options.map((opt: string) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => {
+              currentStep.setSelected(opt);
+              currentStep.setCustomVal("");
+            }}
+            className={`w-full text-left text-xs px-3.5 py-2.5 rounded-lg border font-medium transition-all flex items-center justify-between ${currentStep.selected === opt && !currentStep.customVal
+              ? "bg-purple-700 text-white border-purple-700 shadow-sm"
+              : "bg-white text-purple-900 border-purple-200 hover:bg-purple-100/70"
+              }`}
+          >
+            <span>{opt}</span>
+            {currentStep.selected === opt && !currentStep.customVal && <span className="font-bold">✓</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Write-In Custom Field */}
+      <div>
+        <input
+          type="text"
+          value={currentStep.customVal}
+          onChange={(e) => currentStep.setCustomVal(e.target.value)}
+          placeholder={currentStep.customPlaceholder}
+          className="w-full text-xs px-3 py-2 bg-white border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-800"
+        />
+      </div>
+
+      {/* Extra Instructions on Last Step */}
+      {stepIndex === 3 && (
+        <div>
+          <label className="block text-[10px] font-bold text-purple-900 uppercase tracking-wider mb-1">Additional Guidance / Instructions (Optional)</label>
+          <input
+            type="text"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="e.g. Emphasize solar capacity targets and rural electrification..."
+            className="w-full text-xs px-3 py-2 bg-white border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-800"
+          />
+        </div>
+      )}
+
+      {/* Navigation Buttons */}
+      <div className="pt-1 flex items-center justify-between">
+        {stepIndex > 0 ? (
+          <button
+            type="button"
+            onClick={() => setStepIndex(stepIndex - 1)}
+            className="text-xs text-purple-800 font-semibold px-3 py-1.5 hover:bg-purple-100 rounded-lg transition-colors"
+          >
+            ← Back
+          </button>
+        ) : <div />}
+
+        <button
+          onClick={handleNext}
+          disabled={loading}
+          className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-all shadow-sm disabled:opacity-50"
+        >
+          {loading ? (
+            <span>Searching RAG & Historical Speeches...</span>
+          ) : stepIndex < 3 ? (
+            <span>Next Question →</span>
+          ) : (
+            <span>🔍 Search Historical Speeches & Evidence →</span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Speech Wizard Step 2: Historical Reference Discovery Card ───── */
+function SpeechHistoricalRefCard({
+  topic,
+  intent,
+  historicalData,
+  sessionId,
+  onPlanGenerated
+}: {
+  topic: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  intent: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  historicalData: any;
+  sessionId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onPlanGenerated: (res: any) => void;
+}) {
+  const initialRecommended = historicalData?.recommended_speeches || [];
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    initialRecommended.length > 0 ? [initialRecommended[0].speech_id || initialRecommended[0].title] : []
+  );
+  const [customNotes, setCustomNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Search & Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSpeaker, setSelectedSpeaker] = useState("All Speakers");
+  const [selectedTheme, setSelectedTheme] = useState("All Themes");
+  const [selectedYear, setSelectedYear] = useState("All Years");
+  const [archiveList, setArchiveList] = useState<any[]>(initialRecommended);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (initialRecommended.length > 0) {
+      setArchiveList(initialRecommended);
+      setSelectedIds([initialRecommended[0].speech_id || initialRecommended[0].title]);
+    } else {
+      setIsSearching(true);
+      searchSpeechArchive(topic || "Renewable Energy")
+        .then((res) => {
+          if (res.speeches && res.speeches.length > 0) {
+            setArchiveList(res.speeches);
+            setSelectedIds([res.speeches[0].speech_id || res.speeches[0].title]);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setIsSearching(false));
+    }
+  }, [historicalData, topic]);
+
+  const toggleSpeechSelection = (idOrTitle: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(idOrTitle) ? prev.filter((item) => item !== idOrTitle) : [...prev, idOrTitle]
+    );
+  };
+
+  const handleSearchArchive = async () => {
+    setIsSearching(true);
+    try {
+      const res = await searchSpeechArchive(
+        searchQuery,
+        selectedSpeaker === "All Speakers" ? "" : selectedSpeaker,
+        selectedTheme === "All Themes" ? "" : selectedTheme,
+        selectedYear === "All Years" ? "" : selectedYear
+      );
+      setArchiveList(res.speeches || []);
+    } catch (err) {
+      console.error("Archive search failed:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleGeneratePlan = async () => {
+    setLoading(true);
+    try {
+      const allAvailable = [...initialRecommended, ...archiveList];
+      const selectedDocs = allAvailable
+        .filter((s) => selectedIds.includes(s.speech_id) || selectedIds.includes(s.title))
+        .map((s) => `${s.title} (${s.speaker}, ${s.date})`);
+
+      let chosenReference = selectedDocs.join(" | ");
+      if (customNotes.trim()) {
+        chosenReference = chosenReference ? `${chosenReference} -- Notes: ${customNotes.trim()}` : customNotes.trim();
+      }
+
+      const res = await proposeSpeechPlan(intent, chosenReference || null, sessionId);
+      onPlanGenerated(res);
+    } catch (e: any) {
+      alert(`Error proposing speech plan: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 p-4 bg-purple-50/90 border border-purple-200 rounded-xl space-y-3.5 shadow-sm anim-in text-xs">
+      <div className="flex items-center justify-between pb-2 border-b border-purple-200/70">
+        <div className="flex items-center gap-2 text-purple-950 font-bold text-xs">
+          <span className="text-base">📜</span>
+          <span>Interactive Speech Wizard · Step 2: Select Historical References</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className="text-[11px] font-semibold text-[#8B1060] hover:text-purple-900 bg-purple-100 px-2.5 py-1 rounded-md transition-colors"
+        >
+          {showFilters ? "✕ Close Archive Search" : "🔍 Search & Filter Archive (1,000+ Speeches)"}
+        </button>
+      </div>
+
+      <p className="text-xs text-purple-950 leading-relaxed font-medium">
+        {historicalData?.historical_question || `Suggested strategic speech anchors for '${topic}':`}
+      </p>
+
+      {/* Expandable Archive Search & Filters Bar */}
+      {showFilters && (
+        <div className="p-3 bg-white border border-purple-200 rounded-lg space-y-2.5 anim-in">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearchArchive()}
+              placeholder="Search past speeches by topic, keyword, or venue..."
+              className="flex-1 text-xs px-3 py-1.5 bg-gray-50 border border-purple-200 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-gray-800"
+            />
+            <button
+              type="button"
+              onClick={handleSearchArchive}
+              disabled={isSearching}
+              className="px-3 py-1.5 bg-[#8B1060] text-white font-bold rounded-md hover:bg-purple-900 transition-colors text-xs"
+            >
+              {isSearching ? "Searching..." : "Search"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Speaker</label>
+              <select
+                value={selectedSpeaker}
+                onChange={(e) => setSelectedSpeaker(e.target.value)}
+                className="w-full text-xs p-1.5 bg-gray-50 border border-gray-200 rounded-md text-gray-700"
+              >
+                <option>All Speakers</option>
+                <option>Prime Minister of India</option>
+                <option>Minister of New & Renewable Energy</option>
+                <option>Cabinet Minister of Commerce & Industry</option>
+                <option>Union Health Minister</option>
+                <option>Union Minister of Jal Shakti</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Theme</label>
+              <select
+                value={selectedTheme}
+                onChange={(e) => setSelectedTheme(e.target.value)}
+                className="w-full text-xs p-1.5 bg-gray-50 border border-gray-200 rounded-md text-gray-700"
+              >
+                <option>All Themes</option>
+                <option>Renewable Energy</option>
+                <option>Digital Public Infrastructure</option>
+                <option>Make in India</option>
+                <option>Jal Jeevan Mission</option>
+                <option>Ayushman Bharat</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Year</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="w-full text-xs p-1.5 bg-gray-50 border border-gray-200 rounded-md text-gray-700"
+              >
+                <option>All Years</option>
+                <option>2024</option>
+                <option>2023</option>
+                <option>2022</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Speech Cards List (Multi-Select Checkboxes) */}
+      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        {archiveList.map((speech: any) => {
+          const key = speech.speech_id || speech.title;
+          const isSelected = selectedIds.includes(key);
+          return (
+            <div
+              key={key}
+              onClick={() => toggleSpeechSelection(key)}
+              className={`p-3 rounded-lg border cursor-pointer transition-all ${isSelected
+                ? "bg-white border-[#8B1060] ring-1 ring-[#8B1060]/30 shadow-xs"
+                : "bg-white/80 border-purple-200 hover:bg-white text-gray-800"
+                }`}
+            >
+              <div className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSpeechSelection(key)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-0.5 h-4 w-4 rounded text-[#8B1060] focus:ring-[#8B1060] cursor-pointer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-purple-950 text-xs truncate">{speech.title}</span>
+                    {speech.matching_rationale && (
+                      <span className="shrink-0 text-[10px] font-semibold text-[#8B1060] bg-purple-100 px-2 py-0.5 rounded-full">
+                        💡 {speech.matching_rationale}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-purple-900 text-[11px] font-medium mt-0.5">
+                    👤 {speech.speaker} &nbsp;·&nbsp; 📍 {speech.occasion} ({speech.date})
+                  </div>
+                  <div className="text-gray-600 text-[11px] mt-1 line-clamp-2 leading-snug">
+                    "{speech.summary || speech.snippet}"
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Layman Custom Notes Input */}
+      <div>
+        <label className="block text-[10px] font-bold text-purple-900 uppercase tracking-wider mb-1">
+          📎 Optional: Add Custom Reference Notes or Instructions
+        </label>
+        <input
+          type="text"
+          value={customNotes}
+          onChange={(e) => setCustomNotes(e.target.value)}
+          placeholder="e.g. Also adopt the visionary tone from the 2024 Independence Day address..."
+          className="w-full text-xs px-3 py-2 bg-white border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-800"
+        />
+      </div>
+
+      {/* Confirm Action Button */}
+      <div className="pt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={handleGeneratePlan}
+          disabled={loading}
+          className="w-full sm:w-auto px-5 py-2.5 bg-[#8B1060] hover:bg-purple-900 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <span>Generating Stage 1 Outline...</span>
+            </>
+          ) : (
+            <span>Confirm References & Propose Speech Plan 🚀</span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -805,14 +1390,14 @@ function SpeechApprovalGate({
   }
 
   return (
-    <div className="mt-4 p-4 border border-amber-300 border-l-4 border-l-amber-500 bg-amber-50 rounded-xl shadow-sm space-y-3">
+    <div className="mt-4 p-4 border border-purple-200 border-l-4 border-l-[#8B1060] bg-purple-50/90 rounded-xl shadow-sm space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
+        <div className="flex items-center gap-2 text-purple-950 font-bold text-xs uppercase tracking-wide">
           <span>⏳ Waiting for User Approval</span>
         </div>
-        <span className="text-[10px] text-amber-700 font-mono">Plan ID: {planId}</span>
+        <span className="text-[10px] text-purple-700 font-mono font-semibold">Plan ID: {planId}</span>
       </div>
-      <p className="text-xs text-amber-800">
+      <p className="text-xs text-purple-900 leading-relaxed font-medium">
         Please review the proposed narrative arc, section timing breakdown, and supporting evidence above. You can provide feedback and request revisions, or approve to generate the full speech draft.
       </p>
 
@@ -821,7 +1406,7 @@ function SpeechApprovalGate({
         onChange={(e) => setFeedback(e.target.value)}
         placeholder="Enter revision feedback (e.g., 'Make tone more inspiring', 'Expand Section 2')..."
         rows={2}
-        className="w-full resize-none bg-white border border-amber-200 rounded-lg p-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-amber-500"
+        className="w-full resize-none bg-white border border-purple-200 rounded-lg p-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-[#8B1060]"
       />
 
       {error && <div className="text-xs text-red-600 font-semibold">{error}</div>}
@@ -831,7 +1416,7 @@ function SpeechApprovalGate({
           <button
             onClick={handleRevise}
             disabled={loadingRevise || loadingApprove}
-            className="flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50"
           >
             {loadingRevise ? (
               <span>Regenerating Plan...</span>
@@ -843,7 +1428,7 @@ function SpeechApprovalGate({
         <button
           onClick={handleApprove}
           disabled={loadingRevise || loadingApprove}
-          className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+          className="flex items-center gap-1.5 bg-[#8B1060] hover:bg-[#6b0b49] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-50"
         >
           {loadingApprove ? (
             <span>Generating Full Speech Draft...</span>
@@ -884,7 +1469,7 @@ Occasion: ${occasion.trim()}
 Duration: ${duration}
 Tone: ${tone}
 ${requiredMessages.trim() ? `Required Messages: ${requiredMessages.trim()}\n` : ""}${prohibitedTopics.trim() ? `Prohibited Topics: ${prohibitedTopics.trim()}` : ""}`;
-    
+
     onSubmit(prompt.trim());
   };
 
@@ -1067,11 +1652,11 @@ ${requiredMessages.trim() ? `Required Messages: ${requiredMessages.trim()}\n` : 
 /* ── Empty state ──────────────────────────────────────────────────── */
 function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   const samples = [
-    "What is India's global rank in terms of renewable energy installed capacity?",
-    "Which platform is used by the Ministry of New and Renewable Energy to modernize and empower civil services under Mission Karmayogi?",
-    "Which academic institution coordinates the Jalurjamitra Skill Development Programme?",
-    "What is the official URL of the Indian Renewable Energy Idea Exchange portal?",
-    "Which state submitted the highest renewable energy capacity addition pledge during RE-INVEST 2024?",
+    "Why are unmanned systems considered cost-effective and useful in modern warfare?",
+    "What is Manned-Unmanned Teaming (MUM-T), and what advantages does it provide by combining manned and unmanned systems?",
+    "What is the importance of meaningful human control in MUM-T operations, particularly when autonomous systems are involved?",
+    "What are some of the possible applications of Artificial Intelligence in the Indian Army beyond the warfighting domain?",
+    "What is the purpose of military doctrine, and how does it help in planning and conducting military operations?",
   ];
 
   return (
@@ -1085,7 +1670,7 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
           <polyline points="8,28 20,20 32,12" stroke="#C9A227" strokeWidth="2" fill="none" strokeLinecap="round" />
         </svg>
       </div>
-      <h2 className="text-gray-900 font-bold text-xl mb-2">Government Dataset Intelligence</h2>
+      <h2 className="text-gray-900 font-bold text-xl mb-2">IDS Knowledgebase</h2>
       <p className="text-gray-500 text-sm mb-1">Ask questions, draft emails, or generate reports from indexed government datasets.</p>
       <p className="text-gray-400 text-xs mb-8"></p>
 
@@ -1396,7 +1981,50 @@ export default function ChatPage() {
                   prevTurn={turns[i - 1]}
                   onOpenPdf={setPdfPanel}
                   onSpeechRevised={(revisedRes) => {
-                    const outline = revisedRes.outline_plan || {};
+                    let newAnswer = revisedRes.answer;
+                    let newMeta = revisedRes.meta || {};
+
+                    if (revisedRes.outline_plan) {
+                      const outline = revisedRes.outline_plan || {};
+                      let md = `# 🎙️ Speech Outline: ${outline.proposed_title || 'Speech Plan'}\n**Central Message:** ${outline.central_message || ''}\n\n---\n## 1. 🧭 7-Stage Narrative Arc\n- **Opening:** ${outline.narrative_arc?.opening || ''}\n- **Context:** ${outline.narrative_arc?.context || ''}\n- **Tension / Problem:** ${outline.narrative_arc?.tension_problem || ''}\n- **Evidence:** ${outline.narrative_arc?.evidence || ''}\n- **Proposal:** ${outline.narrative_arc?.proposal || ''}\n- **Call to Action:** ${outline.narrative_arc?.call_to_action || ''}\n- **Close:** ${outline.narrative_arc?.close || ''}\n\n## 2. ⏱️ Proposed Subtopics & Timing Allocation\n`;
+                      for (const st of outline.subtopics || []) {
+                        md += `- **Section ${st.section_number}: ${st.section_title}** (\`${st.allocated_time}\`) — *${st.purpose}*\n`;
+                      }
+                      md += `\n## 3. 📚 Supporting Evidence Mapped\n`;
+                      for (const ev of outline.supporting_evidence || []) {
+                        md += `- **${ev.claim}** (Source: \`${ev.source_doc}\` | DocID: \`${ev.doc_id}\` | Date: \`${ev.date}\`)\n`;
+                      }
+                      if (outline.assumptions_and_questions) {
+                        md += `\n## ❓ Assumptions & Clarification Questions\n`;
+                        for (const q of outline.assumptions_and_questions) {
+                          md += `- ${q}\n`;
+                        }
+                      }
+                      md += `\n---\n📌 **Outline Review**: Please review the revised speech outline above. Provide optional feedback below or click **[Approve Outline & Draft Speech]** to generate the full speech draft.`;
+                      newAnswer = md;
+                      newMeta = {
+                        ...t.result.meta,
+                        agent: "speech_planning",
+                        plan_id: revisedRes.plan_id,
+                        status: "OUTLINE_PROPOSED",
+                        hard_gate_active: true
+                      };
+                    }
+
+                    setTurns((prev) => prev.map((turnItem) => turnItem.id === t.id ? {
+                      ...turnItem,
+                      result: {
+                        ...turnItem.result,
+                        answer: newAnswer || turnItem.result.answer,
+                        meta: {
+                          ...turnItem.result.meta,
+                          ...newMeta
+                        }
+                      }
+                    } : turnItem));
+                  }}
+                  onSpeechPlanGenerated={(planRes) => {
+                    const outline = planRes.outline_plan || {};
                     let md = `# 🎙️ Speech Outline: ${outline.proposed_title || 'Speech Plan'}\n**Central Message:** ${outline.central_message || ''}\n\n---\n## 1. 🧭 7-Stage Narrative Arc\n- **Opening:** ${outline.narrative_arc?.opening || ''}\n- **Context:** ${outline.narrative_arc?.context || ''}\n- **Tension / Problem:** ${outline.narrative_arc?.tension_problem || ''}\n- **Evidence:** ${outline.narrative_arc?.evidence || ''}\n- **Proposal:** ${outline.narrative_arc?.proposal || ''}\n- **Call to Action:** ${outline.narrative_arc?.call_to_action || ''}\n- **Close:** ${outline.narrative_arc?.close || ''}\n\n## 2. ⏱️ Proposed Subtopics & Timing Allocation\n`;
                     for (const st of outline.subtopics || []) {
                       md += `- **Section ${st.section_number}: ${st.section_title}** (\`${st.allocated_time}\`) — *${st.purpose}*\n`;
@@ -1411,15 +2039,30 @@ export default function ChatPage() {
                         md += `- ${q}\n`;
                       }
                     }
-                    md += `\n---\n📌 **Outline Review**: Please review the revised speech outline above. Provide optional feedback below or click **[Approve Outline & Draft Speech]** to generate the full speech draft.`;
+                    md += `\n---\n📌 **Outline Review**: Please review the proposed speech outline above. Provide optional feedback below or click **[Approve Outline & Draft Speech]** to generate the full speech draft.`;
 
-                    setTurns((prev) => prev.map((turnItem) => turnItem.id === t.id ? {
-                      ...turnItem,
-                      result: {
-                        ...turnItem.result,
-                        answer: md
+                    setTurns((prev) => [
+                      ...prev,
+                      {
+                        id: crypto.randomUUID(),
+                        query: "Confirmed Historical Reference & Generated Outline",
+                        timestamp: new Date(),
+                        result: {
+                          session_id: sessionId || "",
+                          answer: md,
+                          chunks: (outline.supporting_evidence || []).map((ev: any) => ({
+                            source: ev.source_doc, page: "1", score: 0.0, search_type: "speech_retrieval", text: ev.claim
+                          })),
+                          context: "",
+                          meta: {
+                            agent: "speech_planning",
+                            plan_id: planRes.plan_id,
+                            status: "OUTLINE_PROPOSED",
+                            hard_gate_active: true
+                          }
+                        }
                       }
-                    } : turnItem));
+                    ]);
                   }}
                   onSpeechApproved={(draftRes) => {
                     setTurns((prev) => [
@@ -1428,6 +2071,7 @@ export default function ChatPage() {
                         id: crypto.randomUUID(),
                         query: "Approved Speech Plan & Generated Draft",
                         result: {
+                          session_id: sessionId || "",
                           answer: draftRes.final_speech,
                           chunks: [],
                           context: "",
