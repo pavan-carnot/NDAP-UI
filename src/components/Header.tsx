@@ -57,7 +57,13 @@ export default function Header() {
   const selectedLang = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
   const langRef = useRef<HTMLDivElement>(null);
   const { sidebarOpen, setSidebarOpen } = useSidebar();
-  const authUser = getAuthUser();
+  // Keep the server render and the first client render identical. Browser
+  // session storage is only available after hydration.
+  const [authUser, setAuthUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAuthUser(getAuthUser());
+  }, []);
 
   useEffect(() => {
     if (fontSize === "normal") {

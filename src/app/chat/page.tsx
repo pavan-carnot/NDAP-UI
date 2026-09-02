@@ -22,9 +22,15 @@ import CitationMaps from "@/components/CitationMaps";
 import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
-import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 /* ── Inline citation processing ───────────────────────────────────── */
 interface InlineCit { source: string; page: string; quote: string; }
@@ -783,7 +789,7 @@ function MessageCard({
       )}
 
       {/* Stage-1 Speech Outline Approval Gate */}
-      {meta.agent === "speech_planning" && meta.plan_id && (
+      {meta.agent === "speech_planning" && meta.plan_id && meta.status !== "DRAFT_GENERATED" && (
         <SpeechApprovalGate
           planId={meta.plan_id}
           onApproved={(res) => onSpeechApproved && onSpeechApproved(res)}
@@ -792,14 +798,14 @@ function MessageCard({
       )}
 
       {/* Stage-2 Speech Draft Download Buttons */}
-      {(meta.agent === "speech_planning_draft" || meta.agent === "speech_planning_draft_generated") && (
+      {(meta.agent === "speech_planning_draft" || meta.agent === "speech_planning_draft_generated" || meta.status === "DRAFT_GENERATED") && (
         <div className="mt-3.5 p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-blue-900 text-xs font-semibold">
             <span>🎙️ Final Speech Draft Ready</span>
           </div>
           <div className="flex items-center gap-2">
             <a
-              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/speech/download?file_id=${meta.plan_id}&format=docx`}
+              href={`/api/speech/download?file_id=${meta.plan_id}&format=docx`}
               download
               target="_blank"
               rel="noopener noreferrer"
@@ -808,7 +814,7 @@ function MessageCard({
               <span>📥 Download Word (.docx)</span>
             </a>
             <a
-              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/speech/download?file_id=${meta.plan_id}&format=pdf`}
+              href={`/api/speech/download?file_id=${meta.plan_id}&format=pdf`}
               download
               target="_blank"
               rel="noopener noreferrer"
@@ -1450,7 +1456,7 @@ function SpeechIntentModal({
   onSubmit: (formattedPrompt: string) => void;
 }) {
   const [topic, setTopic] = useState("Economic Growth and Rural Digital Infrastructure");
-  const [speaker, setSpeaker] = useState("Cabinet Minister");
+  const [speaker, setSpeaker] = useState("CDS");
   const [audience, setAudience] = useState("Policy Analysts & Industry Leaders");
   const [occasion, setOccasion] = useState("Annual Economic Summit 2026");
   const [duration, setDuration] = useState("10 minutes");
@@ -1520,11 +1526,13 @@ ${requiredMessages.trim() ? `Required Messages: ${requiredMessages.trim()}\n` : 
                 onChange={(e) => setSpeaker(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-900 focus:outline-none focus:border-ndap-blue focus:bg-white transition-all"
               >
-                <option value="Cabinet Minister">Cabinet Minister</option>
-                <option value="State Official / Governor">State Official / Governor</option>
-                <option value="Senior Secretary / Administrator">Senior Secretary / Administrator</option>
-                <option value="Industry Leader / Policy Director">Industry Leader / Policy Director</option>
-                <option value="Official Government Representative">Official Representative</option>
+                <option value="CDS">CDS</option>
+                <option value="CISC">CISC</option>
+                <option value="DCIDS (DoT)">DCIDS (DoT)</option>
+                <option value="DCIDS (PP + FD)">DCIDS (PP + FD)</option>
+                <option value="DCIDS (Ops)">DCIDS (Ops)</option>
+                <option value="DGDIA">DGDIA</option>
+                <option value="Others">Others</option>
               </select>
             </div>
 
@@ -1715,8 +1723,6 @@ export default function ChatPage() {
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
   const router = useRouter();
-  const authUser = getAuthUser();
-
   useEffect(() => {
     if (!isAuthenticated()) router.replace("/login");
   }, [router]);
@@ -1739,7 +1745,7 @@ export default function ChatPage() {
   }, [turns, loading]);
 
   const submitQuery = useCallback(
-    async (q: string) => {
+    async (q: string, agentOverride?: string | null) => {
       if (!q.trim() || loading) return;
       setError(null);
       setLoading(true);
@@ -1747,14 +1753,20 @@ export default function ChatPage() {
       setInput("");
 
       // Generate session ID on first query and reuse for the conversation
-      const sid = sessionId ?? crypto.randomUUID().slice(0, 8);
+      const sid = sessionId ?? generateId().slice(0, 8);
       if (!sessionId) setSessionId(sid);
 
       try {
-        const result = await askQuery(q.trim(), sid, "fast", selectedAgent, language);
+        const result = await askQuery(
+          q.trim(),
+          sid,
+          "fast",
+          agentOverride === undefined ? selectedAgent : agentOverride,
+          language
+        );
         setTurns((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
+          { id: generateId(), query: q.trim(), result, timestamp: new Date() },
         ]);
         getRecentQueries(10).then(setRecentQueries).catch(() => null);
       } catch (err) {
@@ -2044,7 +2056,7 @@ export default function ChatPage() {
                     setTurns((prev) => [
                       ...prev,
                       {
-                        id: crypto.randomUUID(),
+                        id: generateId(),
                         query: "Confirmed Historical Reference & Generated Outline",
                         timestamp: new Date(),
                         result: {
@@ -2068,7 +2080,7 @@ export default function ChatPage() {
                     setTurns((prev) => [
                       ...prev,
                       {
-                        id: crypto.randomUUID(),
+                        id: generateId(),
                         query: "Approved Speech Plan & Generated Draft",
                         result: {
                           session_id: sessionId || "",
@@ -2083,6 +2095,7 @@ export default function ChatPage() {
                             tokens_out: 1500,
                             cost_usd: 0.002,
                             time_seconds: 2.5,
+                            calc_log: [],
                             cached: false,
                             blocked: false
                           }
@@ -2196,7 +2209,7 @@ export default function ChatPage() {
         onSubmit={(formattedPrompt) => {
           setShowSpeechModal(false);
           setSelectedAgent("speech_planning");
-          submitQuery(formattedPrompt);
+          submitQuery(formattedPrompt, "speech_planning");
         }}
       />
     </div>

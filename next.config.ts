@@ -4,7 +4,13 @@ const API_BASE = process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app", "*.ngrok.io"],
+  allowedDevOrigins: [
+    "hqids.carnotresearch.com",
+    "34.131.42.251",
+    "*.ngrok-free.dev",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+  ],
   experimental: {
    proxyTimeout: 1800000,
   },
