@@ -191,13 +191,14 @@ export async function proposeSpeechPlan(
 export async function approveSpeechPlan(
   planId: string,
   userFeedback = "",
-  userRole = "speechwriter"
-): Promise<{ plan_id: string; status: string; final_speech: string; outline_used: unknown }> {
+  userRole = "speechwriter",
+  sessionId?: string | null
+): Promise<{ plan_id: string; status: string; final_speech: string; final_speech_raw?: string; chunks?: unknown[]; outline_used: unknown }> {
   return json(
     await fetch(`${BASE}/speech/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_id: planId, user_feedback: userFeedback, user_role: userRole }),
+      body: JSON.stringify({ plan_id: planId, user_feedback: userFeedback, user_role: userRole, session_id: sessionId }),
     })
   );
 }

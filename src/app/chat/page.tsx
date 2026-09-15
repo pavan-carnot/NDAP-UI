@@ -593,13 +593,17 @@ function MessageCard({
   prevTurn,
   onOpenPdf,
   onSpeechApproved,
+  onAgentDeselect,
+  chatSessionId,
   onSpeechRevised,
   onSpeechPlanGenerated
 }: {
   turn: ChatTurn;
   prevTurn?: ChatTurn;
   onOpenPdf: (t: PdfTarget) => void;
-  onSpeechApproved?: (draftResult: { final_speech: string; plan_id: string }) => void;
+  onSpeechApproved?: (draftResult: { final_speech: string; plan_id: string; chunks?: unknown[] }) => void;
+  onAgentDeselect?: () => void;
+  chatSessionId?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSpeechRevised?: (revisedResult: any) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -792,6 +796,7 @@ function MessageCard({
       {meta.agent === "speech_planning" && meta.plan_id && meta.status !== "DRAFT_GENERATED" && (
         <SpeechApprovalGate
           planId={meta.plan_id}
+          chatSessionId={chatSessionId}
           onApproved={(res) => onSpeechApproved && onSpeechApproved(res)}
           onRevised={(res) => onSpeechRevised && onSpeechRevised(res)}
         />
@@ -1345,12 +1350,14 @@ function SpeechHistoricalRefCard({
 function SpeechApprovalGate({
   planId,
   onApproved,
-  onRevised
+  onRevised,
+  chatSessionId
 }: {
   planId: string;
-  onApproved: (draftResult: { final_speech: string; plan_id: string }) => void;
+  onApproved: (draftResult: { final_speech: string; plan_id: string; chunks?: unknown[] }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onRevised: (revisedResult: any) => void;
+  chatSessionId?: string | null;
 }) {
   const [feedback, setFeedback] = useState("");
   const [loadingApprove, setLoadingApprove] = useState(false);
@@ -1377,7 +1384,7 @@ function SpeechApprovalGate({
     setLoadingApprove(true);
     setError(null);
     try {
-      const res = await approveSpeechPlan(planId, feedback);
+      const res = await approveSpeechPlan(planId, feedback, "speechwriter", chatSessionId);
       setApproved(true);
       onApproved(res);
     } catch (err) {
@@ -2085,7 +2092,7 @@ export default function ChatPage() {
                         result: {
                           session_id: sessionId || "",
                           answer: draftRes.final_speech,
-                          chunks: [],
+                          chunks: (draftRes.chunks || []) as import("@/lib/types").Chunk[],
                           context: "",
                           meta: {
                             agent: "speech_planning_draft",
@@ -2103,7 +2110,11 @@ export default function ChatPage() {
                         timestamp: new Date()
                       }
                     ]);
+                    // Auto-deselect speech agent so follow-up prompts go to multi-turn edit
+                    setSelectedAgent(null);
                   }}
+                  onAgentDeselect={() => setSelectedAgent(null)}
+                  chatSessionId={sessionId}
                 />
               ))}
               {loading && <LiveTrace query={pendingQuery} />}
@@ -2126,49 +2137,87 @@ export default function ChatPage() {
           />
           <div className="flex items-center justify-between px-4 pb-3">
             <div className="flex items-center gap-2 relative">
+              {/* ── Emailing Agent button ── */}
               <button
                 type="button"
                 onClick={() => setSelectedAgent(selectedAgent === "draft_email" ? null : "draft_email")}
                 disabled={loading}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "draft_email"
-                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm pr-1.5"
                   : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   }`}
                 title="Emailing Agent"
               >
                 <span>✉️</span>
                 <span>Emailing Agent</span>
+                {selectedAgent === "draft_email" && (
+                  <span
+                    role="button"
+                    aria-label="Deselect Emailing Agent"
+                    onClick={(e) => { e.stopPropagation(); setSelectedAgent(null); }}
+                    className="ml-1 flex items-center justify-center w-4 h-4 rounded-full bg-ndap-blue/10 hover:bg-ndap-blue/25 text-ndap-blue transition-colors cursor-pointer text-[10px] font-bold leading-none"
+                  >
+                    ×
+                  </span>
+                )}
               </button>
 
+              {/* ── Generate Report button ── */}
               <button
                 type="button"
                 onClick={() => setSelectedAgent(selectedAgent === "generate_document" ? null : "generate_document")}
                 disabled={loading}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "generate_document"
-                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm pr-1.5"
                   : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   }`}
                 title="Generate Report"
               >
                 <span>📄</span>
                 <span>Generate Report</span>
+                {selectedAgent === "generate_document" && (
+                  <span
+                    role="button"
+                    aria-label="Deselect Generate Report"
+                    onClick={(e) => { e.stopPropagation(); setSelectedAgent(null); }}
+                    className="ml-1 flex items-center justify-center w-4 h-4 rounded-full bg-ndap-blue/10 hover:bg-ndap-blue/25 text-ndap-blue transition-colors cursor-pointer text-[10px] font-bold leading-none"
+                  >
+                    ×
+                  </span>
+                )}
               </button>
 
+              {/* ── Speech Planner button ── */}
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedAgent("speech_planning");
-                  setShowSpeechModal(true);
+                  if (selectedAgent === "speech_planning") {
+                    // Already active: deselect (don't reopen modal)
+                    setSelectedAgent(null);
+                  } else {
+                    setSelectedAgent("speech_planning");
+                    setShowSpeechModal(true);
+                  }
                 }}
                 disabled={loading}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${selectedAgent === "speech_planning"
-                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm"
+                  ? "bg-ndap-sky border-ndap-blue text-ndap-blue shadow-sm pr-1.5"
                   : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   }`}
                 title="Speech Planner Agent"
               >
                 <span>🎙️</span>
                 <span>Speech Planner</span>
+                {selectedAgent === "speech_planning" && (
+                  <span
+                    role="button"
+                    aria-label="Deselect Speech Planner"
+                    onClick={(e) => { e.stopPropagation(); setSelectedAgent(null); }}
+                    className="ml-1 flex items-center justify-center w-4 h-4 rounded-full bg-ndap-blue/10 hover:bg-ndap-blue/25 text-ndap-blue transition-colors cursor-pointer text-[10px] font-bold leading-none"
+                  >
+                    ×
+                  </span>
+                )}
               </button>
 
               <span className="text-[11px] text-gray-400">
