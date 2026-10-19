@@ -12,6 +12,7 @@ import { getAuthUser, logout } from "@/lib/auth";
 const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
   { href: "/map",   label: "Spatial Analytics" },
+  { href: "/graph", label: "Link Analysis" },
   { href: "/admin", label: "Admin & Data" },
 ];
 

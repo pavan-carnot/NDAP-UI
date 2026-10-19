@@ -20,6 +20,30 @@ import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 
+/* ── Web citation processing ──────────────────────────────────────── */
+interface WebCit { url: string; domain: string; }
+
+function buildWebCitations(rawAnswer: string): { processedText: string; webCitations: WebCit[] } {
+  const webCitations: WebCit[] = [];
+  const seen = new Set<string>();
+
+  const processedText = rawAnswer.replace(
+    /\[Web:\s*(https?:\/\/[^\]]+)\]/g,
+    (_, url: string) => {
+      const cleanUrl = url.trim();
+      let domain = cleanUrl;
+      try { domain = new URL(cleanUrl).hostname; } catch { /* keep full url */ }
+      if (!seen.has(domain)) {
+        seen.add(domain);
+        webCitations.push({ url: cleanUrl, domain });
+      }
+      return `[🌐 ${domain}](${cleanUrl})`;
+    }
+  );
+
+  return { processedText, webCitations };
+}
+
 /* ── Inline citation processing ───────────────────────────────────── */
 interface InlineCit { source: string; page: string; quote: string; }
 
@@ -581,7 +605,8 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
   const docLink = extractDocLink(answer);
   
   const isEmail = meta.agent === "draft_email" || answer.startsWith("**Subject:**") || answer.startsWith("Subject:");
-  const { processedText, citations } = buildInlineCitations(answer, chunks, isEmail);
+  const { processedText: answerWithWebLinks, webCitations } = buildWebCitations(answer);
+  const { processedText, citations } = buildInlineCitations(answerWithWebLinks, chunks, isEmail);
 
   // If current message has no usable citations but is a map request, fall back to previous turn's map context
   const isMapRequest = MAP_REQUEST_RE.test(turn.query);
@@ -680,6 +705,34 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
               </div>
             </div>
           )}
+
+          {webCitations.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-teal-100 anim-in">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
+                <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                </svg>
+                Web Sources ({webCitations.length})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {webCitations.map((wc, i) => (
+                  <a
+                    key={i}
+                    href={wc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700 text-xs font-medium hover:bg-teal-100 hover:border-teal-400 transition-colors"
+                    title={wc.url}
+                  >
+                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                    </svg>
+                    {wc.domain}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -758,6 +811,7 @@ export default function ChatPage() {
   const recognitionRef = useRef<any>(null);
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
@@ -798,7 +852,7 @@ export default function ChatPage() {
       if (!sessionId) setSessionId(sid);
 
       try {
-        const result = await askQuery(q.trim(), sid, "fast", selectedAgent, language);
+        const result = await askQuery(q.trim(), sid, "fast", selectedAgent, language, webSearchEnabled);
         setTurns((prev) => [
           ...prev,
           { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
@@ -811,7 +865,7 @@ export default function ChatPage() {
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, sessionId, selectedAgent, language]
+    [loading, sessionId, selectedAgent, language, webSearchEnabled]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1068,6 +1122,22 @@ export default function ChatPage() {
               >
                 <span>📄</span>
                 <span>Generate Report</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                disabled={loading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none ${webSearchEnabled
+                  ? "bg-teal-50 border-teal-400 text-teal-700 shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                title="Supplement answers with live web results"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                </svg>
+                <span>Web Search</span>
               </button>
 
               <span className="text-[11px] text-gray-400">

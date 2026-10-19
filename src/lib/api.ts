@@ -100,13 +100,14 @@ export async function askQuery(
   sessionId: string | null,
   mode = "fast",
   agent?: string | null,
-  language = "English"
+  language = "English",
+  webSearchEnabled = false
 ): Promise<QueryResult> {
   const raw = await json<{ answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"] }>(
     await fetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sessionId, mode, agent, language }),
+      body: JSON.stringify({ message, sessionId, mode, agent, language, web_search_enabled: webSearchEnabled }),
     })
   );
   // Normalise v1 shape (metadata) → existing QueryResult shape (meta)
@@ -198,4 +199,71 @@ export async function getMapData(datasetId: string, states?: string[]): Promise<
     url += `&states=${encodeURIComponent(states.join(","))}`;
   }
   return json<MapDataPoint[]>(await fetch(url));
+}
+
+// ── Entity / Link Analysis ─────────────────────────────────────────────────
+
+export interface EntityItem {
+  name: string;
+  type: string;
+  mention_count: number;
+  doc_count: number;
+  source_files: string[];
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  size: number;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  weight: number;
+}
+
+export interface GraphNetwork {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface EntityDossier {
+  entity: string;
+  type: string;
+  mentions: number;
+  source_files: string[];
+  connected_entities: { name: string; type: string; weight: number }[];
+  summary: string;
+}
+
+export async function getEntities(params?: {
+  type?: string;
+  search?: string;
+  limit?: number;
+}): Promise<EntityItem[]> {
+  const q = new URLSearchParams();
+  if (params?.type && params.type !== "ALL") q.set("type", params.type);
+  if (params?.search) q.set("search", params.search);
+  if (params?.limit) q.set("limit", String(params.limit));
+  return json<EntityItem[]>(await fetch(`${BASE}/entities?${q}`));
+}
+
+export async function getEntityTypeCounts(): Promise<Record<string, number>> {
+  return json<Record<string, number>>(await fetch(`${BASE}/entities/counts`));
+}
+
+export async function getGraphVisualize(entity: string, depth = 2): Promise<string> {
+  const res = await fetch(
+    `${BASE}/graph/visualize?entity=${encodeURIComponent(entity)}&depth=${depth}`
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
+export async function getEntityDossier(entity: string): Promise<EntityDossier> {
+  return json<EntityDossier>(
+    await fetch(`${BASE}/graph/dossier?entity=${encodeURIComponent(entity)}`)
+  );
 }
