@@ -20,32 +20,13 @@ import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 
-/* ── Web citation processing ──────────────────────────────────────── */
-interface WebCit { url: string; domain: string; }
-
-function buildWebCitations(rawAnswer: string): { processedText: string; webCitations: WebCit[] } {
-  const webCitations: WebCit[] = [];
-  const seen = new Set<string>();
-
-  const processedText = rawAnswer.replace(
-    /\[Web:\s*(https?:\/\/[^\]]+)\]/g,
-    (_, url: string) => {
-      const cleanUrl = url.trim();
-      let domain = cleanUrl;
-      try { domain = new URL(cleanUrl).hostname; } catch { /* keep full url */ }
-      if (!seen.has(domain)) {
-        seen.add(domain);
-        webCitations.push({ url: cleanUrl, domain });
-      }
-      return `[🌐 ${domain}](${cleanUrl})`;
-    }
-  );
-
-  return { processedText, webCitations };
-}
-
 /* ── Inline citation processing ───────────────────────────────────── */
-interface InlineCit { source: string; page: string; quote: string; }
+// url is set for web citations ([Web: <url>]); source then holds the domain
+interface InlineCit { source: string; page: string; quote: string; url?: string; }
+
+// Matches, in text order: [file.pdf, Page 12] | [Source: file, Page/Sheet: X, Quote: "..."] | [Web: url]
+const CITATION_RE =
+  /\[([^,\]]+\.(?:pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]|\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]|\[Web:\s*(https?:\/\/[^\]]+)\]/gi;
 
 function buildInlineCitations(
   rawAnswer: string,
@@ -54,69 +35,56 @@ function buildInlineCitations(
 ): { processedText: string; citations: InlineCit[] } {
   const citations: InlineCit[] = [];
   const keyToIdx = new Map<string, number>();
+  let hasWeb = false;
 
-  function getIdx(source: string, page: string, quote = ""): number {
-    const key = `${source}::${page}`;
+  function getIdx(source: string, page: string, quote = "", url?: string): number {
+    const key = url ?? `${source}::${page}`;
     if (!keyToIdx.has(key)) {
       keyToIdx.set(key, citations.length);
-      citations.push({ source, page, quote });
+      citations.push({ source, page, quote, url });
     }
     return keyToIdx.get(key)!;
   }
 
-  // If it's an email draft, extract references but do not render inline bracket links in the text
+  // Shared numbering for document and web citations, numbered in order of appearance
+  let result = rawAnswer.replace(
+    CITATION_RE,
+    (_, file, filePage, srcFile, srcPage, quote, webUrl) => {
+      let idx: number;
+      if (webUrl) {
+        hasWeb = true;
+        const url = webUrl.trim();
+        let domain = url;
+        try { domain = new URL(url).hostname; } catch { /* keep full url */ }
+        idx = getIdx(domain, "", "", url);
+      } else if (file) {
+        idx = getIdx(file.trim(), filePage.trim());
+      } else {
+        idx = getIdx(srcFile.trim(), srcPage.trim(), quote?.trim() ?? "");
+      }
+      // Email drafts keep references in the Sources list only, not inline
+      return isEmail ? "" : `[${idx + 1}](#cite-${idx})`;
+    }
+  );
+
+  if (!isEmail) {
+    result = result.replace(/\[\d+\]\(#cite-\d+\)(?:\s*\[\d+\]\(#cite-\d+\))+/g, (group) => {
+      const unique = Array.from(new Set(group.match(/\[\d+\]\(#cite-\d+\)/g)));
+      return unique.sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1))).join("");
+    });
+  }
+
   if (isEmail) {
-    let result = rawAnswer.replace(
-      /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]/gi,
-      (_, filename, _ext, pageStr) => {
-        getIdx(filename.trim(), pageStr.trim());
-        return "";
-      }
-    );
-
-    result = result.replace(
-      /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g,
-      (_, filename, pageStr, quote) => {
-        getIdx(filename.trim(), pageStr.trim(), quote?.trim() ?? "");
-        return "";
-      }
-    );
-
     // Also strip any leftover markdown citation link syntax [1](#cite-0) or [1] or [cite-0]
     result = result.replace(/\[\d+\]\(#cite-\d+\)/g, "")
                    .replace(/\[\d+\]/g, "")
-                   .replace(/#cite-\d+/g, "");
-
-    // Fallback: use chunk sources if nothing matched
-    if (citations.length === 0) {
-      for (const c of chunks) {
-        getIdx(c.source, String(c.page));
-      }
-    }
-
-    return { processedText: result.trim(), citations };
+                   .replace(/#cite-\d+/g, "")
+                   .trim();
   }
 
-  // New format: [filename.pdf, Page 12]
-  let result = rawAnswer.replace(
-    /\[([^,\]]+\.(pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]/gi,
-    (_, filename, _ext, pageStr) => {
-      const idx = getIdx(filename.trim(), pageStr.trim());
-      return `[${idx + 1}](#cite-${idx})`;
-    }
-  );
-
-  // Old format: [Source: file, Page/Sheet: X, Quote: "..."]
-  result = result.replace(
-    /\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]/g,
-    (_, filename, pageStr, quote) => {
-      const idx = getIdx(filename.trim(), pageStr.trim(), quote?.trim() ?? "");
-      return `[${idx + 1}](#cite-${idx})`;
-    }
-  );
-
-  // Fallback: use chunk sources if nothing matched
-  if (citations.length === 0) {
+  // Fallback: use chunk sources if nothing matched (not for web-cited answers —
+  // those chunks are unrelated corpus hits)
+  if (citations.length === 0 && !hasWeb) {
     for (const c of chunks) {
       getIdx(c.source, String(c.page));
     }
@@ -263,7 +231,7 @@ function docUrl(filename: string, page?: string | number) {
 }
 
 /* ── Citation chip ────────────────────────────────────────────────── */
-function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => void }) {
+function CitationChip({ cit, num, onOpenPdf }: { cit: Citation; num: number; onOpenPdf?: () => void }) {
   const isPdf = cit.source.toLowerCase().endsWith(".pdf");
   const label = isPdf ? `p.${cit.page}` : `sheet ${cit.page}`;
 
@@ -271,11 +239,9 @@ function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => voi
     return (
       <button
         onClick={onOpenPdf}
-        className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
+        className="group inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
       >
-        <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z" />
-        </svg>
+        <span className="inline-flex items-center justify-center min-w-[1.1rem] h-4 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1 leading-none group-hover:bg-white group-hover:text-ndap-blue">{num}</span>
         <span className="max-w-[160px] truncate">{cit.source}</span>
         <span className="text-[10px] opacity-70">{label}</span>
       </button>
@@ -287,11 +253,9 @@ function CitationChip({ cit, onOpenPdf }: { cit: Citation; onOpenPdf?: () => voi
       href={docUrl(cit.source, isPdf ? cit.page : undefined)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
+      className="group inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
     >
-      <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4l-4-4H4zm5 1v3h3L9 1zM4 8h8v1H4V8zm0 2h8v1H4v-1zm0 2h5v1H4v-1z" />
-      </svg>
+      <span className="inline-flex items-center justify-center min-w-[1.1rem] h-4 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1 leading-none group-hover:bg-white group-hover:text-ndap-blue">{num}</span>
       <span className="max-w-[160px] truncate">{cit.source}</span>
       <span className="text-[10px] opacity-70">{label}</span>
     </a>
@@ -605,8 +569,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
   const docLink = extractDocLink(answer);
   
   const isEmail = meta.agent === "draft_email" || answer.startsWith("**Subject:**") || answer.startsWith("Subject:");
-  const { processedText: answerWithWebLinks, webCitations } = buildWebCitations(answer);
-  const { processedText, citations } = buildInlineCitations(answerWithWebLinks, chunks, isEmail);
+  const { processedText, citations } = buildInlineCitations(answer, chunks, isEmail);
 
   // If current message has no usable citations but is a map request, fall back to previous turn's map context
   const isMapRequest = MAP_REQUEST_RE.test(turn.query);
@@ -617,7 +580,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
     : null;
   const fallbackMeta = fallbackCitations ? prevTurn!.result.meta : null;
 
-  const mapCitations = fallbackCitations ?? citations;
+  const mapCitations = (fallbackCitations ?? citations).filter((c) => !c.url);
   const mapMeta = fallbackMeta ?? meta;
 
   return (
@@ -665,6 +628,14 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                     const idx = parseInt(href.replace("#cite-", ""), 10);
                     const cit = citations[idx];
                     const isRealPdf = cit?.source?.toLowerCase().endsWith(".pdf");
+                    const badgeCls = "inline-flex items-center justify-center min-w-[1.25rem] h-5 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1.5 mx-0.5 hover:bg-ndap-navy transition-colors align-baseline leading-none";
+                    if (cit?.url) {
+                      return (
+                        <a href={cit.url} target="_blank" rel="noopener noreferrer" title={cit.url} className={`${badgeCls} no-underline cursor-pointer`}>
+                          {idx + 1}
+                        </a>
+                      );
+                    }
                     return (
                       <button
                         onClick={() => cit && isRealPdf && onOpenPdf({
@@ -673,7 +644,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
                           filename: cit.source,
                         })}
                         title={cit ? `${cit.source} · Page ${cit.page}` : ""}
-                        className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1.5 mx-0.5 hover:bg-ndap-navy transition-colors align-baseline leading-none ${isRealPdf ? "cursor-pointer" : "cursor-default"}`}
+                        className={`${badgeCls} ${isRealPdf ? "cursor-pointer" : "cursor-default"}`}
                       >
                         {idx + 1}
                       </button>
@@ -691,10 +662,23 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
             <div className="mt-4 pt-3.5 border-t border-gray-100 anim-in">
               <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Sources</div>
               <div className="flex flex-wrap gap-2">
-                {citations.map((c, i) => (
+                {citations.map((c, i) => c.url ? (
+                  <a
+                    key={i}
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={c.url}
+                    className="group inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
+                  >
+                    <span className="inline-flex items-center justify-center min-w-[1.1rem] h-4 text-[10px] font-bold bg-ndap-blue text-white rounded-full px-1 leading-none group-hover:bg-white group-hover:text-ndap-blue">{i + 1}</span>
+                    <span className="max-w-[160px] truncate">{c.source}</span>
+                  </a>
+                ) : (
                   <CitationChip
                     key={i}
                     cit={c}
+                    num={i + 1}
                     onOpenPdf={c.source.toLowerCase().endsWith(".pdf") ? () => onOpenPdf({
                       url: `${DOCS_BASE}/${encodeURIComponent(c.source)}`,
                       page: parseInt(c.page) || 1,
@@ -706,33 +690,6 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
             </div>
           )}
 
-          {webCitations.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-teal-100 anim-in">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
-                <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
-                </svg>
-                Web Sources ({webCitations.length})
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {webCitations.map((wc, i) => (
-                  <a
-                    key={i}
-                    href={wc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700 text-xs font-medium hover:bg-teal-100 hover:border-teal-400 transition-colors"
-                    title={wc.url}
-                  >
-                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
-                    </svg>
-                    {wc.domain}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

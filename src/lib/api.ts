@@ -201,69 +201,75 @@ export async function getMapData(datasetId: string, states?: string[]): Promise<
   return json<MapDataPoint[]>(await fetch(url));
 }
 
-// ── Entity / Link Analysis ─────────────────────────────────────────────────
+// ── Link Analysis (Neo4j knowledge graph) ──────────────────────────────────
 
-export interface EntityItem {
-  name: string;
-  type: string;
-  mention_count: number;
-  doc_count: number;
-  source_files: string[];
-}
-
-export interface GraphNode {
+export interface KgNode {
   id: string;
-  label: string;
-  type: string;
+  name: string;
+  labels: string[];
+  color: string;
   size: number;
+  caption: string;
+  properties: Record<string, unknown>;
 }
 
-export interface GraphEdge {
+export interface KgRelationship {
+  id: string;
   from: string;
   to: string;
-  weight: number;
-}
-
-export interface GraphNetwork {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface EntityDossier {
-  entity: string;
   type: string;
-  mentions: number;
-  source_files: string[];
-  connected_entities: { name: string; type: string; weight: number }[];
-  summary: string;
+  caption: string;
+  color: string;
+  width: number;
+  properties: Record<string, unknown>;
 }
 
-export async function getEntities(params?: {
-  type?: string;
-  search?: string;
-  limit?: number;
-}): Promise<EntityItem[]> {
-  const q = new URLSearchParams();
-  if (params?.type && params.type !== "ALL") q.set("type", params.type);
-  if (params?.search) q.set("search", params.search);
-  if (params?.limit) q.set("limit", String(params.limit));
-  return json<EntityItem[]>(await fetch(`${BASE}/entities?${q}`));
+export interface KgGraphData {
+  nodes: KgNode[];
+  relationships: KgRelationship[];
 }
 
-export async function getEntityTypeCounts(): Promise<Record<string, number>> {
-  return json<Record<string, number>>(await fetch(`${BASE}/entities/counts`));
+export type KgStatusState =
+  | "not_started" | "initializing" | "processing" | "finalizing" | "completed" | "error";
+
+export interface KgStatus {
+  status: KgStatusState;
+  progress: number;
+  error?: string | null;
+  file_names?: string[];
+  is_dense?: boolean;
+  nodes?: number;
+  relationships?: number;
+  total_windows?: number;
+  failed_windows?: number;
+  current_file?: string;
+  started_at?: number;
+  elapsed_seconds?: number;
 }
 
-export async function getGraphVisualize(entity: string, depth = 2): Promise<string> {
-  const res = await fetch(
-    `${BASE}/graph/visualize?entity=${encodeURIComponent(entity)}&depth=${depth}`
+export async function createGraph(
+  sessionId: string,
+  fileNames: string[],
+  isDense: boolean
+): Promise<{ status: string; session_id: string }> {
+  return json(
+    await fetch(`${BASE}/v1/documents/graph`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, file_names: fileNames, is_dense: isDense }),
+    })
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
 }
 
-export async function getEntityDossier(entity: string): Promise<EntityDossier> {
-  return json<EntityDossier>(
-    await fetch(`${BASE}/graph/dossier?entity=${encodeURIComponent(entity)}`)
+export async function getGraphStatus(sessionId: string): Promise<KgStatus> {
+  return json<KgStatus>(
+    await fetch(`${BASE}/v1/documents/graph/status?session_id=${encodeURIComponent(sessionId)}`)
   );
 }
+
+export async function getGraphData(sessionId: string): Promise<KgGraphData> {
+  return json<KgGraphData>(
+    await fetch(`${BASE}/v1/documents/graph/data?session_id=${encodeURIComponent(sessionId)}`)
+  );
+}
+
