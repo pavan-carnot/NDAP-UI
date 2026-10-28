@@ -37,10 +37,12 @@ export interface QueryResult {
 }
 
 export interface ChatTurn {
-  id: string;
+  id: string;           // server turn id when the turn is saved to a chat
   query: string;
   result: QueryResult;
   timestamp: Date;
+  saved?: boolean;
+  isNote?: boolean;
 }
 
 export interface Document {

@@ -6,14 +6,23 @@ const PdfPanel = lazy(() => import("@/components/PdfPanel"));
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import clsx from "clsx";
+import { Bookmark, BookmarkCheck, FileText, Folder, Loader2 } from "lucide-react";
 import {
   askQuery,
+  getChatHistory,
   getHealth,
-  getRecentQueries,
-  resetSession,
+  GENERAL_WORKSPACE,
+  KnowledgeContainer,
+  listChats,
+  StoredTurn,
+  toggleNote,
+  touchContainer,
 } from "@/lib/api";
 import CitationMaps from "@/components/CitationMaps";
-import type { ChatTurn, HealthStatus, RecentQuery, Citation } from "@/lib/types";
+import KnowledgeSidebar from "@/components/sidebar/KnowledgeSidebar";
+import FileIcon from "@/components/sidebar/FileIcon";
+import { loadActiveContainer, saveActiveContainer, useContainers } from "@/lib/use-containers";
+import type { ChatTurn, HealthStatus, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
 import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
@@ -564,7 +573,12 @@ interface PdfTarget { url: string; page: number; filename: string; }
 const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|states?|chart|visual)\b|\bon (a |the )?map\b/i;
 
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?: ChatTurn; onOpenPdf: (t: PdfTarget) => void }) {
+function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote }: {
+  turn: ChatTurn;
+  prevTurn?: ChatTurn;
+  onOpenPdf: (t: PdfTarget) => void;
+  onToggleNote?: () => void;
+}) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
   
@@ -616,6 +630,20 @@ function MessageCard({ turn, prevTurn, onOpenPdf }: { turn: ChatTurn; prevTurn?:
               <span className="text-[10px] text-gray-400">
                 {turn.timestamp.toLocaleTimeString()}
               </span>
+              {onToggleNote && (
+                <button
+                  onClick={onToggleNote}
+                  className={clsx(
+                    "p-1 rounded-md transition-colors",
+                    turn.isNote ? "text-ndap-navy hover:bg-ndap-sky" : "text-gray-300 hover:text-ndap-navy hover:bg-ndap-sky"
+                  )}
+                  title={turn.isNote ? "Remove from saved notes" : "Save to notes"}
+                  aria-label={turn.isNote ? "Remove from saved notes" : "Save to notes"}
+                  aria-pressed={!!turn.isNote}
+                >
+                  {turn.isNote ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -750,15 +778,82 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   );
 }
 
+/* ── Empty state inside a knowledge container ─────────────────────── */
+function ContainerEmptyState({ container, onSample }: { container: KnowledgeContainer; onSample: (q: string) => void }) {
+  const ready = container.files.filter(f => f.status === "active");
+  const indexing = container.files.filter(f => f.status === "processing" || f.status === "missing").length;
+  const samples = [
+    "Summarise the key points of these documents.",
+    "Which people, organisations and places are mentioned most?",
+    "List the important dates and what happened on each.",
+  ];
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-ndap-sky border-2 border-ndap-border flex items-center justify-center mb-5 shadow-card">
+        <Folder className="w-8 h-8 text-[#C9A227]" />
+      </div>
+      <h2 className="text-gray-900 font-bold text-xl mb-1">{container.name}</h2>
+      <p className="text-gray-500 text-sm mb-5">
+        Answers here use only the {container.files.length} document{container.files.length === 1 ? "" : "s"} in this container.
+      </p>
+      {container.files.length > 0 && (
+        <ul className="w-full max-w-md text-left bg-white border border-ndap-border rounded-xl divide-y divide-gray-100 mb-6 max-h-44 overflow-y-auto">
+          {container.files.map(f => (
+            <li key={f.filename} className="flex items-center gap-2 px-3 py-2 text-xs">
+              <FileIcon filename={f.filename} />
+              <span className="flex-1 truncate text-gray-700">{f.filename}</span>
+              {f.status === "active" ? <span className="text-gray-400">{f.total_chunks} chunks</span>
+                : f.status === "failed" ? <span className="text-red-600">Failed</span>
+                : <span className="flex items-center gap-1 text-amber-700"><Loader2 className="w-3 h-3 animate-spin" />Indexing</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {ready.length > 0 ? (
+        <div className="w-full max-w-xl">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Try asking</p>
+          <div className="grid gap-2">
+            {samples.map(q => (
+              <button key={q} onClick={() => onSample(q)}
+                className="text-left text-sm text-gray-800 bg-white border border-ndap-border rounded-xl px-4 py-3 hover:bg-ndap-sky hover:border-ndap-blue transition-colors shadow-sm">
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          {indexing ? "Files are being indexed. You can ask questions once they finish." : "Use Add files in the sidebar to put documents in this container."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function turnFromStored(t: StoredTurn, chatId: string): ChatTurn {
+  return {
+    id: t.id,
+    query: t.query,
+    result: { session_id: chatId, answer: t.answer, chunks: t.chunks ?? [], context: "", meta: t.meta },
+    timestamp: new Date(t.created_at),
+    saved: true,
+    isNote: t.is_note,
+  };
+}
+
 /* ── Main page ────────────────────────────────────────────────────── */
 export default function ChatPage() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [containerId, setContainerId] = useState<string>(GENERAL_WORKSPACE);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatName, setChatName] = useState<string | null>(null);
+  const [chatsVersion, setChatsVersion] = useState(0);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingQuery, setPendingQuery] = useState("");
   const [input, setInput] = useState("");
   const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [recentQueries, setRecentQueries] = useState<RecentQuery[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [pdfPanel, setPdfPanel] = useState<PdfTarget | null>(null);
@@ -766,6 +861,10 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  // Bumped whenever the visible chat changes, so a late answer never lands in another chat
+  const viewRef = useRef(0);
+  const { containers, loaded: containersLoaded, error: containersError, reload: reloadContainers } = useContainers();
+  const activeContainer = containers.find(c => c.session_id === containerId) ?? null;
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
@@ -789,7 +888,79 @@ export default function ChatPage() {
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => null);
-    getRecentQueries(10).then(setRecentQueries).catch(() => null);
+  }, []);
+
+  const showChat = useCallback((cid: string, chId: string | null, name: string | null = null) => {
+    viewRef.current += 1;
+    setContainerId(cid);
+    saveActiveContainer(cid);
+    setChatId(chId);
+    setChatName(name);
+    setTurns([]);
+    setError(null);
+  }, []);
+
+  const openChat = useCallback(async (cid: string, chId: string) => {
+    showChat(cid, chId);
+    const view = viewRef.current;
+    setLoadingHistory(true);
+    try {
+      const h = await getChatHistory(cid, chId);
+      if (view !== viewRef.current) return;
+      setChatName(h.chatName);
+      setTurns(h.messages.map(t => turnFromStored(t, chId)));
+    } catch (e) {
+      if (view === viewRef.current) setError(e instanceof Error ? e.message : "Couldn't load this chat");
+    } finally {
+      if (view === viewRef.current) setLoadingHistory(false);
+    }
+  }, [showChat]);
+
+  // A new chat is created lazily, on its first question
+  const newChat = useCallback((cid: string) => {
+    showChat(cid, null);
+    setLoadingHistory(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [showChat]);
+
+  // Switching container opens its most recent chat
+  const selectContainer = useCallback(async (cid: string) => {
+    if (cid !== GENERAL_WORKSPACE) touchContainer(cid).catch(() => null);
+    try {
+      const chats = await listChats(cid);
+      if (chats[0]) openChat(cid, chats[0].chat_id); else newChat(cid);
+    } catch {
+      newChat(GENERAL_WORKSPACE);
+    }
+  }, [openChat, newChat]);
+
+  useEffect(() => {
+    selectContainer(loadActiveContainer() ?? GENERAL_WORKSPACE);
+  }, [selectContainer]);
+
+  // The remembered container may have been deleted elsewhere
+  useEffect(() => {
+    if (containersLoaded && !containersError && containerId !== GENERAL_WORKSPACE && !activeContainer) {
+      newChat(GENERAL_WORKSPACE);
+    }
+  }, [containersLoaded, containersError, containerId, activeContainer, newChat]);
+
+  const toggleTurnNote = useCallback(async (turn: ChatTurn) => {
+    if (!chatId || !turn.saved) return;
+    try {
+      const r = await toggleNote(containerId, chatId, turn.id);
+      setTurns(prev => prev.map(t => (t.id === turn.id ? { ...t, isNote: r.save_to_note } : t)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update the note");
+    }
+  }, [containerId, chatId]);
+
+  const openContainerFile = useCallback((_cid: string, filename: string) => {
+    if (filename.toLowerCase().endsWith(".pdf")) {
+      setPdfPanel({ url: `${DOCS_BASE}/${encodeURIComponent(filename)}`, page: 1, filename });
+    } else {
+      window.open(`${DOCS_BASE}/${encodeURIComponent(filename)}`, "_blank", "noopener");
+    }
   }, []);
 
   useEffect(() => {
@@ -804,25 +975,33 @@ export default function ChatPage() {
       setPendingQuery(q.trim());
       setInput("");
 
-      // Generate session ID on first query and reuse for the conversation
-      const sid = sessionId ?? crypto.randomUUID().slice(0, 8);
-      if (!sessionId) setSessionId(sid);
-
+      const view = viewRef.current;
       try {
-        const result = await askQuery(q.trim(), sid, "fast", selectedAgent, language, webSearchEnabled);
+        // Every question is saved to a chat in the active container; start one if needed
+        let chId = chatId;
+        if (!chId) {
+          chId = (await getChatHistory(containerId)).chatId;
+          if (view === viewRef.current) setChatId(chId);
+        }
+        const result = await askQuery(q.trim(), containerId, "fast", selectedAgent, language, webSearchEnabled, chId);
+        setChatsVersion(v => v + 1);
+        if (view !== viewRef.current) return;
+        if (result.chat_name) setChatName(result.chat_name);
         setTurns((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), query: q.trim(), result, timestamp: new Date() },
+          {
+            id: result.turn_id ?? crypto.randomUUID(), query: q.trim(), result, timestamp: new Date(),
+            saved: !!result.turn_id, isNote: false,
+          },
         ]);
-        getRecentQueries(10).then(setRecentQueries).catch(() => null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Query failed. Is the backend running?");
+        if (view === viewRef.current) setError(err instanceof Error ? err.message : "Query failed. Is the backend running?");
       } finally {
         setLoading(false);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, sessionId, selectedAgent, language, webSearchEnabled]
+    [loading, chatId, containerId, selectedAgent, language, webSearchEnabled]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -831,22 +1010,6 @@ export default function ChatPage() {
       submitQuery(input);
     }
   };
-
-  const startNew = useCallback(() => {
-    if (sessionId) resetSession(sessionId).catch(() => null);
-    setTurns([]);
-    setSessionId(null);
-    setError(null);
-    inputRef.current?.focus();
-  }, [sessionId]);
-
-  const startNewAndSubmit = useCallback((q: string) => {
-    if (sessionId) resetSession(sessionId).catch(() => null);
-    setTurns([]);
-    setSessionId(null);
-    setError(null);
-    submitQuery(q);
-  }, [sessionId, submitQuery]);
 
   const toggleMic = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -911,94 +1074,52 @@ export default function ChatPage() {
   return (
     <div className="flex-1 flex w-full px-2 py-3 gap-3 overflow-hidden min-h-0">
 
-      {/* ── Left sidebar ─────────────────────────────────────────── */}
-      <aside className={clsx("flex-col w-56 xl:w-64 flex-shrink-0 gap-3 overflow-y-auto", sidebarOpen ? "hidden lg:flex" : "hidden")}>
-
-        <button
-          onClick={startNew}
-          className="w-full flex items-center justify-center gap-2 bg-ndap-navy text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-ndap-navyDark transition-colors shadow-sm"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          New Analysis
-        </button>
-
-        {/* Recent queries */}
-        <div className="bg-white border border-ndap-border rounded-xl shadow-sm flex-1 overflow-auto flex flex-col min-h-0">
-          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-ndap-border/60 flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 text-ndap-blue" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-              </svg>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Recent Sessions</span>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {recentQueries.length > 0 ? (
-              <div className="space-y-1">
-                {recentQueries.map((rq) => {
-                  const ts = rq.cached_at
-                    ? new Date(rq.cached_at).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                    : null;
-                  return (
-                    <button
-                      key={rq.hash}
-                      onClick={() => startNewAndSubmit(rq.text)}
-                      className="group w-full text-left rounded-lg px-2.5 py-2 hover:bg-ndap-sky border border-transparent hover:border-ndap-border transition-all duration-150"
-                    >
-                      <div className="flex items-start gap-2">
-                        <svg className="w-3 h-3 mt-0.5 flex-shrink-0 text-gray-300 group-hover:text-ndap-blue transition-colors" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-700 group-hover:text-gray-900 leading-snug break-words whitespace-normal transition-colors">{rq.text}</p>
-                          {ts && <p className="text-[10px] text-gray-400 mt-1">{ts}</p>}
-                        </div>
-                        <svg className="w-3 h-3 flex-shrink-0 text-gray-200 group-hover:text-ndap-blue opacity-0 group-hover:opacity-100 transition-all mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-10 h-10 rounded-full bg-ndap-sky border border-ndap-border flex items-center justify-center mb-2">
-                  <svg className="w-5 h-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
+      {/* ── Left sidebar: knowledge containers ───────────────────── */}
+      <aside className={clsx("flex-col w-64 xl:w-72 flex-shrink-0 min-h-0", sidebarOpen ? "hidden lg:flex" : "hidden")}>
+        <KnowledgeSidebar
+          containers={containers}
+          loaded={containersLoaded}
+          loadError={containersError}
+          reloadContainers={reloadContainers}
+          activeContainerId={containerId}
+          activeChatId={chatId}
+          chatsVersion={chatsVersion}
+          onSelectContainer={selectContainer}
+          onSelectChat={openChat}
+          onNewChat={newChat}
+          onChatRemoved={(cid, chId, clearedOnly) => {
+            if (cid !== containerId || chId !== chatId) return;
+            if (clearedOnly) { viewRef.current += 1; setTurns([]); } else newChat(cid);
+          }}
+          onContainerDeleted={cid => { if (cid === containerId) newChat(GENERAL_WORKSPACE); }}
+          onOpenFile={openContainerFile}
+          footer={
+            <>
+              {/* System status */}
+              {health && (
+                <div className="bg-white border border-ndap-border rounded-xl p-3 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2.5">System Status</p>
+                  <div className="space-y-1.5 text-xs text-gray-700">
+                    <div className="flex items-center gap-2">
+                      <Dot ok={health.postgres} />
+                      <span>{health.postgres ? "Structured Data Connected" : "Structured Data Offline"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Dot ok={health.elasticsearch} />
+                      <span>{health.elasticsearch ? "Unstructured Data Online" : "Unstructured Data Offline"}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-[11px] text-gray-600">
+                    <div><b className="text-ndap-navy">{health.stats.total_docs ?? "–"}</b> indexed files</div>
+                    <div><b className="text-ndap-navy">{health.stats.total_chunks ?? "–"}</b> chunks</div>
+                    <div><b className="text-ndap-navy">{health.stats.total_assets ?? "–"}</b> visual assets</div>
+                    <div><b className="text-ndap-navy">{health.stats.total_timeseries ?? "–"}</b> timeseries pts</div>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-400">No recent sessions yet.</p>
-                <p className="text-[10px] text-gray-300 mt-0.5">Ask your first question above</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* System status */}
-        {health && (
-          <div className="bg-white border border-ndap-border rounded-xl p-3 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2.5">System Status</p>
-            <div className="space-y-1.5 text-xs text-gray-700">
-              <div className="flex items-center gap-2">
-                <Dot ok={health.postgres} />
-                <span>{health.postgres ? "Structured Data Connected" : "Structured Data Offline"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Dot ok={health.elasticsearch} />
-                <span>{health.elasticsearch ? "Unstructured Data Online" : "Unstructured Data Offline"}</span>
-              </div>
-            </div>
-            <div className="mt-2.5 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-[11px] text-gray-600">
-              <div><b className="text-ndap-navy">{health.stats.total_docs ?? "–"}</b> indexed files</div>
-              <div><b className="text-ndap-navy">{health.stats.total_chunks ?? "–"}</b> chunks</div>
-              <div><b className="text-ndap-navy">{health.stats.total_assets ?? "–"}</b> visual assets</div>
-              <div><b className="text-ndap-navy">{health.stats.total_timeseries ?? "–"}</b> timeseries pts</div>
-            </div>
-          </div>
-        )}
+              )}
+            </>
+          }
+        />
       </aside>
 
       {/* ── PDF viewer panel (middle column) ─────────────────────── */}
@@ -1028,11 +1149,23 @@ export default function ChatPage() {
         )}
 
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {turns.length === 0 && !loading ? (
-            <EmptyState onSample={submitQuery} />
+          {loadingHistory ? (
+            <div className="flex-1 flex items-center justify-center gap-2 text-sm text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading chat…
+            </div>
+          ) : turns.length === 0 && !loading ? (
+            activeContainer ? <ContainerEmptyState container={activeContainer} onSample={submitQuery} /> : <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
-              {turns.map((t, i) => <MessageCard key={t.id} turn={t} prevTurn={turns[i - 1]} onOpenPdf={setPdfPanel} />)}
+              {turns.map((t, i) => (
+                <MessageCard
+                  key={t.id}
+                  turn={t}
+                  prevTurn={turns[i - 1]}
+                  onOpenPdf={setPdfPanel}
+                  onToggleNote={t.saved ? () => toggleTurnNote(t) : undefined}
+                />
+              ))}
               {loading && <LiveTrace query={pendingQuery} />}
               <div ref={bottomRef} />
             </div>
@@ -1046,7 +1179,9 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask a question, request an email draft, or generate a report… (Enter to send)"
+            placeholder={activeContainer
+              ? `Ask about the documents in ${activeContainer.name}… (Enter to send)`
+              : "Ask a question, request an email draft, or generate a report… (Enter to send)"}
             rows={2}
             disabled={loading}
             className="w-full resize-none bg-transparent px-4 pt-4 pb-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50"
@@ -1097,8 +1232,8 @@ export default function ChatPage() {
                 <span>Web Search</span>
               </button>
 
-              <span className="text-[11px] text-gray-400">
-                {sessionId ? `Session: ${sessionId}` : "New session"}
+              <span className="text-[11px] text-gray-400 truncate max-w-[220px]" title={chatName ?? undefined}>
+                {activeContainer?.name ?? "All documents"} · {chatName ?? "New chat"}
               </span>
             </div>
             <div className="flex items-center gap-2">

@@ -1,3 +1,4 @@
+import { getAuthUser } from "./auth";
 import type {
   QueryResult,
   HealthStatus,
@@ -9,11 +10,24 @@ import type {
 
 const BASE = "/api";
 
+// Containers and chats are owned by the signed-in user
+function userHeaders(): Record<string, string> {
+  const user = typeof window === "undefined" ? null : getAuthUser();
+  return user ? { "X-User": user } : {};
+}
+
+// FastAPI errors arrive as {"detail": "..."}; surface just the message
+async function errorText(res: Response): Promise<string> {
+  const text = await res.text().catch(() => res.statusText);
+  try {
+    const detail = JSON.parse(text).detail;
+    if (typeof detail === "string") return detail;
+  } catch { /* not JSON */ }
+  return text || `HTTP ${res.status}`;
+}
+
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(await errorText(res));
   return res.json() as Promise<T>;
 }
 
@@ -95,19 +109,33 @@ export async function clearStaleCache(): Promise<{ deleted: number }> {
 
 // ── v1 API (multi-agent workflow) ──────────────────────────────────────────
 
+export interface AskResult extends QueryResult {
+  turn_id?: string;
+  chat_name?: string;
+}
+
+// With chatId set, sessionId is the knowledge container ("general" = All documents)
+// and the turn is saved to that chat.
 export async function askQuery(
   message: string,
   sessionId: string | null,
   mode = "fast",
   agent?: string | null,
   language = "English",
-  webSearchEnabled = false
-): Promise<QueryResult> {
-  const raw = await json<{ answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"] }>(
+  webSearchEnabled = false,
+  chatId?: string | null
+): Promise<AskResult> {
+  const raw = await json<{
+    answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"];
+    turn_id?: string; chat_name?: string;
+  }>(
     await fetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sessionId, mode, agent, language, web_search_enabled: webSearchEnabled }),
+      headers: { "Content-Type": "application/json", ...userHeaders() },
+      body: JSON.stringify({
+        message, sessionId, session_id: chatId ? sessionId : undefined, chat_id: chatId ?? undefined,
+        mode, agent, language, web_search_enabled: webSearchEnabled,
+      }),
     })
   );
   // Normalise v1 shape (metadata) → existing QueryResult shape (meta)
@@ -117,6 +145,8 @@ export async function askQuery(
     chunks: raw.chunks,
     context: "",
     meta: raw.metadata,
+    turn_id: raw.turn_id,
+    chat_name: raw.chat_name,
   };
 }
 
@@ -273,3 +303,145 @@ export async function getGraphData(sessionId: string): Promise<KgGraphData> {
   );
 }
 
+
+// ── Knowledge containers ────────────────────────────────────────────────────
+
+export const GENERAL_WORKSPACE = "general";
+
+export interface ContainerFile {
+  filename: string;
+  origin: "upload" | "library";
+  status: "active" | "processing" | "failed" | "missing" | string;
+  total_chunks: number | null;
+  error_message: string | null;
+  added_at: string;
+}
+
+export interface KnowledgeContainer {
+  session_id: string;
+  name: string;
+  is_pinned: boolean;
+  created_at: string;
+  timestamp: string;
+  chat_count: number;
+  files: ContainerFile[];
+  file_names: string[];
+}
+
+export interface ChatSummary {
+  chat_id: string;
+  chat_name: string;
+  total_messages: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoredTurn {
+  id: string;
+  query: string;
+  answer: string;
+  chunks: QueryResult["chunks"];
+  meta: QueryResult["meta"];
+  is_note: boolean;
+  created_at: string;
+}
+
+export interface ChatHistory {
+  chatId: string;
+  chatName: string;
+  total_messages: number;
+  messages: StoredTurn[];
+}
+
+export interface SavedNote {
+  message_id: string;
+  chat_id: string;
+  chat_name: string;
+  query: string;
+  answer: string;
+  created_at: string;
+}
+
+export interface SourceUploadResult {
+  session_id: string;
+  details: { filename: string; status: string; error?: string }[];
+  container: KnowledgeContainer;
+}
+
+async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
+  return json<T>(
+    await fetch(`${BASE}${path}`, {
+      method,
+      headers: { ...userHeaders(), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  );
+}
+
+const enc = encodeURIComponent;
+
+export async function listContainers(): Promise<KnowledgeContainer[]> {
+  const res = await send<{ data: { sessions: KnowledgeContainer[] } }>("/v1/documents/containers", "GET");
+  return res.data.sessions;
+}
+
+function sourcesForm(files: File[], libraryFiles: string[], useVision: boolean) {
+  const fd = new FormData();
+  files.forEach(f => fd.append("files", f));
+  if (libraryFiles.length) fd.append("library_files", JSON.stringify(libraryFiles));
+  fd.append("use_vision", String(useVision));
+  return fd;
+}
+
+export async function createContainer(
+  name: string, files: File[], libraryFiles: string[], useVision: boolean
+): Promise<SourceUploadResult> {
+  const fd = sourcesForm(files, libraryFiles, useVision);
+  if (name.trim()) fd.append("name", name.trim());
+  return json(await fetch(`${BASE}/v1/documents/upload`, { method: "POST", headers: userHeaders(), body: fd }));
+}
+
+export async function addSources(
+  containerId: string, files: File[], libraryFiles: string[], useVision: boolean
+): Promise<SourceUploadResult> {
+  const fd = sourcesForm(files, libraryFiles, useVision);
+  fd.append("session_id", containerId);
+  return json(await fetch(`${BASE}/v1/documents/add-upload`, { method: "POST", headers: userHeaders(), body: fd }));
+}
+
+export const renameContainer = (id: string, newName: string) =>
+  send("/v1/documents/rename-container", "PUT", { session_id: id, new_name: newName });
+
+export const togglePinContainer = (id: string) =>
+  send<{ isPinned: boolean }>(`/v1/documents/containers/${enc(id)}/pin`, "POST");
+
+export const touchContainer = (id: string) =>
+  send("/v1/documents/timestamp", "PUT", { session_id: id });
+
+export const deleteContainer = (id: string) =>
+  send<{ files_removed_from_library: string[]; chats_deleted: number }>(`/v1/documents/containers/${enc(id)}`, "DELETE");
+
+export const removeContainerSource = (id: string, filename: string) =>
+  send<{ removed_from_library: boolean }>(`/v1/documents/containers/${enc(id)}/sources/${enc(filename)}`, "DELETE");
+
+export const listChats = (containerId: string) =>
+  send<{ chats: ChatSummary[] }>(`/v1/queries/chat-history/list?session_id=${enc(containerId)}`, "GET").then(r => r.chats);
+
+// Without chatId the server reuses the latest empty chat or starts a new one
+export const getChatHistory = (containerId: string, chatId?: string, limit = 200) =>
+  send<ChatHistory>(
+    `/v1/queries/chat-history?session_id=${enc(containerId)}${chatId ? `&chat_id=${enc(chatId)}` : ""}&limit=${limit}`,
+    "GET"
+  );
+
+export const renameChat = (containerId: string, chatId: string, newName: string) =>
+  send("/v1/queries/chat-history/rename", "PUT", { session_id: containerId, chat_id: chatId, new_chat_name: newName });
+
+export const deleteChat = (containerId: string, chatId: string, clearOnly = false) =>
+  send(`/v1/queries/chat-history/${enc(containerId)}/${enc(chatId)}${clearOnly ? "?clear=true" : ""}`, "DELETE");
+
+export const listNotes = (containerId: string) =>
+  send<{ notes: SavedNote[] }>(`/v1/queries/notes/list?session_id=${enc(containerId)}`, "GET").then(r => r.notes);
+
+export const toggleNote = (containerId: string, chatId: string, messageId: string) =>
+  send<{ save_to_note: boolean }>("/v1/queries/notes/toggle", "POST", { session_id: containerId, chat_id: chatId, message_id: messageId });

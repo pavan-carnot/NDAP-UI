@@ -25,9 +25,14 @@ function formatElapsed(sec: number) {
 export default function CreateGraph({
   sessionId,
   onCompleted,
+  fixedFiles,
+  fixedLabel,
 }: {
   sessionId: string;
   onCompleted: () => void;
+  // Knowledge container mode: the graph is built from exactly these files
+  fixedFiles?: string[];
+  fixedLabel?: string;
 }) {
   const [docs, setDocs] = useState<Document[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -70,15 +75,25 @@ export default function CreateGraph({
     pollTimer.current = setInterval(checkStatus, POLL_INTERVAL_MS);
   }, [checkStatus, stopPolling]);
 
+  const fixedKey = fixedFiles?.join("\n");
+
   // Documents + current status on mount / session change
   useEffect(() => {
-    getDocuments()
-      .then(d => {
-        const usable = d.filter(x => x.status !== "failed" && x.status !== "processing");
-        setDocs(usable);
-        setSelected(new Set(usable.map(x => x.filename)));
-      })
-      .catch(() => setDocs([]));
+    if (fixedFiles) {
+      setDocs(fixedFiles.map(filename => ({ filename, status: "active" })));
+      setSelected(new Set(fixedFiles));
+    } else {
+      getDocuments()
+        .then(d => {
+          const usable = d.filter(x => x.status !== "failed" && x.status !== "processing");
+          setDocs(usable);
+          setSelected(new Set(usable.map(x => x.filename)));
+        })
+        .catch(() => setDocs([]));
+    }
+  }, [sessionId, fixedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     checkStatus().then(s => { if (s && ACTIVE.has(s.status)) startPolling(); });
     return stopPolling;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,16 +132,24 @@ export default function CreateGraph({
       <div className="px-4 py-3 border-b border-[#e2d9c8]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[10px] font-bold text-[#102C57] uppercase tracking-wide">
-            Documents ({selected.size}/{docs.length})
+            {fixedFiles ? `Documents in ${fixedLabel ?? "container"} (${docs.length})` : `Documents (${selected.size}/${docs.length})`}
           </p>
-          <div className="flex gap-2 text-[10px] text-[#6b5a3e]">
-            <button disabled={running} onClick={() => setSelected(new Set(docs.map(d => d.filename)))} className="hover:underline">All</button>
-            <button disabled={running} onClick={() => setSelected(new Set())} className="hover:underline">None</button>
-          </div>
+          {!fixedFiles && (
+            <div className="flex gap-2 text-[10px] text-[#6b5a3e]">
+              <button disabled={running} onClick={() => setSelected(new Set(docs.map(d => d.filename)))} className="hover:underline">All</button>
+              <button disabled={running} onClick={() => setSelected(new Set())} className="hover:underline">None</button>
+            </div>
+          )}
         </div>
         <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
-          {docs.length === 0 && <p className="text-xs text-[#a09070]">No ingested documents</p>}
-          {docs.map(d => (
+          {docs.length === 0 && (
+            <p className="text-xs text-[#a09070]">
+              {fixedFiles ? "No indexed documents in this container yet" : "No ingested documents"}
+            </p>
+          )}
+          {fixedFiles ? docs.map(d => (
+            <p key={d.filename} className="truncate text-xs text-[#1e293b] py-0.5" title={d.filename}>{d.filename}</p>
+          )) : docs.map(d => (
             <label key={d.filename} className="flex items-center gap-2 text-xs cursor-pointer py-0.5">
               <input
                 type="checkbox"

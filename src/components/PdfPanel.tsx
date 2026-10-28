@@ -4,7 +4,8 @@ import { useRef, useState, useEffect } from "react";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 
-const WORKER_URL = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
+// Served from public/ (copied from node_modules/pdfjs-dist 3.11.174) so the viewer works offline
+const WORKER_URL = "/pdf.worker.min.js";
 const HIGHLIGHT_DURATION = 7000;
 
 interface PdfPanelProps {
