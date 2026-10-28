@@ -385,26 +385,28 @@ export async function listContainers(): Promise<KnowledgeContainer[]> {
   return res.data.sessions;
 }
 
-function sourcesForm(files: File[], libraryFiles: string[], useVision: boolean) {
+// replace: an upload whose name is already indexed overwrites and re-indexes that copy
+function sourcesForm(files: File[], libraryFiles: string[], useVision: boolean, replace: boolean) {
   const fd = new FormData();
   files.forEach(f => fd.append("files", f));
   if (libraryFiles.length) fd.append("library_files", JSON.stringify(libraryFiles));
   fd.append("use_vision", String(useVision));
+  fd.append("replace", String(replace));
   return fd;
 }
 
 export async function createContainer(
-  name: string, files: File[], libraryFiles: string[], useVision: boolean
+  name: string, files: File[], libraryFiles: string[], useVision: boolean, replace = false
 ): Promise<SourceUploadResult> {
-  const fd = sourcesForm(files, libraryFiles, useVision);
+  const fd = sourcesForm(files, libraryFiles, useVision, replace);
   if (name.trim()) fd.append("name", name.trim());
   return json(await fetch(`${BASE}/v1/documents/upload`, { method: "POST", headers: userHeaders(), body: fd }));
 }
 
 export async function addSources(
-  containerId: string, files: File[], libraryFiles: string[], useVision: boolean
+  containerId: string, files: File[], libraryFiles: string[], useVision: boolean, replace = false
 ): Promise<SourceUploadResult> {
-  const fd = sourcesForm(files, libraryFiles, useVision);
+  const fd = sourcesForm(files, libraryFiles, useVision, replace);
   fd.append("session_id", containerId);
   return json(await fetch(`${BASE}/v1/documents/add-upload`, { method: "POST", headers: userHeaders(), body: fd }));
 }
@@ -422,7 +424,10 @@ export const deleteContainer = (id: string) =>
   send<{ files_removed_from_library: string[]; chats_deleted: number }>(`/v1/documents/containers/${enc(id)}`, "DELETE");
 
 export const removeContainerSource = (id: string, filename: string) =>
-  send<{ removed_from_library: boolean }>(`/v1/documents/containers/${enc(id)}/sources/${enc(filename)}`, "DELETE");
+  send<{
+    removed_from_library: boolean;
+    graph: { nodes_deleted: number; relationships_deleted: number; chunks_deleted: number } | null;
+  }>(`/v1/documents/containers/${enc(id)}/sources/${enc(filename)}`, "DELETE");
 
 export const listChats = (containerId: string) =>
   send<{ chats: ChatSummary[] }>(`/v1/queries/chat-history/list?session_id=${enc(containerId)}`, "GET").then(r => r.chats);

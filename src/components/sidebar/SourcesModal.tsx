@@ -31,6 +31,9 @@ export default function SourcesModal({
   const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [library, setLibrary] = useState<Document[] | null>(null);
+  // Every indexed filename, to spot uploads that would collide with an existing copy
+  const [indexed, setIndexed] = useState<Map<string, string>>(new Map());
+  const [replace, setReplace] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [useVision, setUseVision] = useState(false);
@@ -41,7 +44,10 @@ export default function SourcesModal({
 
   useEffect(() => {
     getDocuments()
-      .then(docs => setLibrary(docs.filter(d => d.status === "active" && !container?.file_names.includes(d.filename))))
+      .then(docs => {
+        setIndexed(new Map(docs.map(d => [d.filename, d.status])));
+        setLibrary(docs.filter(d => d.status === "active" && !container?.file_names.includes(d.filename)));
+      })
       .catch(() => setLibrary([]));
   }, [container]);
 
@@ -70,6 +76,8 @@ export default function SourcesModal({
   }
 
   const total = files.length + picked.size;
+  const duplicates = files.filter(f => indexed.get(f.name) === "active");
+  const stillIndexing = files.filter(f => indexed.get(f.name) === "processing");
 
   async function submit() {
     if (!total || busy) return;
@@ -77,8 +85,8 @@ export default function SourcesModal({
     setError(null);
     try {
       const res = creating
-        ? await createContainer(name, files, [...picked], useVision)
-        : await addSources(container.session_id, files, [...picked], useVision);
+        ? await createContainer(name, files, [...picked], useVision, replace)
+        : await addSources(container.session_id, files, [...picked], useVision, replace);
       const bad = res.details.filter(d => d.status === "rejected" || d.status === "not_found");
       onDone(res.container);
       if (bad.length) { setProblems(bad); setBusy(false); } else onClose();
@@ -176,6 +184,12 @@ export default function SourcesModal({
                 <li key={f.name} className="flex items-center gap-2 text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
                   <FileIcon filename={f.name} />
                   <span className="flex-1 truncate" title={f.name}>{f.name}</span>
+                  {indexed.get(f.name) === "active" && (
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-px text-[10px] font-semibold">Already indexed</span>
+                  )}
+                  {indexed.get(f.name) === "processing" && (
+                    <span className="rounded-full bg-gray-200 text-gray-600 px-2 py-px text-[10px] font-semibold">Being indexed</span>
+                  )}
                   <span className="text-gray-400">{formatSize(f.size)}</span>
                   <button onClick={() => setFiles(prev => prev.filter(x => x !== f))} className="text-gray-400 hover:text-red-600" aria-label={`Remove ${f.name}`}>
                     <X className="w-3.5 h-3.5" />
@@ -183,6 +197,32 @@ export default function SourcesModal({
                 </li>
               ))}
             </ul>
+          )}
+          {duplicates.length > 0 && (
+            <fieldset className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <legend className="sr-only">Files that are already indexed</legend>
+              <p className="text-[11px] font-semibold text-amber-900 mb-1.5">
+                {duplicates.length === 1
+                  ? `“${duplicates[0].name}” is already indexed.`
+                  : `${duplicates.length} of these files are already indexed.`}
+              </p>
+              <label className="flex items-start gap-2 text-[11px] text-gray-700 cursor-pointer">
+                <input type="radio" name="dup" checked={!replace} onChange={() => setReplace(false)} className="mt-0.5 accent-[#8B1060]" />
+                <span><b>Use the existing indexed copy</b> (no re-indexing)</span>
+              </label>
+              <label className="flex items-start gap-2 text-[11px] text-gray-700 cursor-pointer mt-1">
+                <input type="radio" name="dup" checked={replace} onChange={() => setReplace(true)} className="mt-0.5 accent-[#8B1060]" />
+                <span>
+                  <b>Replace it with my upload</b>. It is re-indexed, which takes a few minutes, and the new version is used by
+                  every container that has this file. Rebuild their knowledge graphs afterwards.
+                </span>
+              </label>
+            </fieldset>
+          )}
+          {stillIndexing.length > 0 && (
+            <p className="mt-2 text-[11px] text-gray-500">
+              {stillIndexing.map(f => f.name).join(", ")}: a file with this name is still being indexed, so it will be skipped. Try again in a few minutes.
+            </p>
           )}
           <label className="flex items-start gap-2 mt-3 cursor-pointer">
             <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} className="mt-0.5 accent-[#8B1060]" />

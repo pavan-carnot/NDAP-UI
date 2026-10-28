@@ -343,7 +343,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
               {dialog.origin === "upload"
                 ? "It was uploaded here, so it is also deleted from the server unless another container uses it."
                 : "It stays in the document library."}
-              {" "}Rebuild the knowledge graph to drop its entities.
+              {" "}Entities found only in this file are also removed from the container&apos;s knowledge graph.
             </p>
           </>}
         />
