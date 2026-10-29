@@ -93,3 +93,7 @@ Thumbs.db
 
 # Claude Code notes
 CLAUDE.md
+
+# Markdown docs stay local (README is kept)
+*.md
+!README.md
