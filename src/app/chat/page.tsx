@@ -22,6 +22,7 @@ import CitationMaps from "@/components/CitationMaps";
 import KnowledgeSidebar from "@/components/sidebar/KnowledgeSidebar";
 import FileIcon from "@/components/sidebar/FileIcon";
 import { loadActiveContainer, saveActiveContainer, useContainers } from "@/lib/use-containers";
+import { MODEL_OPTIONS, loadModelChoice, saveModelChoice, type ModelChoice } from "@/lib/models";
 import type { ChatTurn, HealthStatus, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
@@ -36,6 +37,14 @@ interface InlineCit { source: string; page: string; quote: string; url?: string;
 // Matches, in text order: [file.pdf, Page 12] | [Source: file, Page/Sheet: X, Quote: "..."] | [Web: url]
 const CITATION_RE =
   /\[([^,\]]+\.(?:pdf|xlsx|xls|csv))[,\s]+Pages?\s+([^\]]+)\]|\[Source:\s*([^,\]\n]+),\s*Page\/Sheet:\s*([^,\]\n]+)(?:,\s*Quote:\s*"([^"\n]+)")?\]|\[Web:\s*(https?:\/\/[^\]]+)\]/gi;
+
+// Answers follow the prompt's OUTPUT FORMAT (**Data Used:**, **Source:** …), but models often
+// run those fields together on one line; give each its own line (a markdown hard break)
+const ANSWER_FIELD_RE = /[ \t]*\n?[ \t]*(\*\*(?:Data Used|Formula|Source|Page\/Sheet|Figure Title|Figure ID|Caveats|Visualization):\*\*)/g;
+
+function formatAnswerFields(answer: string) {
+  return answer.replace(ANSWER_FIELD_RE, "  \n$1");
+}
 
 function buildInlineCitations(
   rawAnswer: string,
@@ -505,6 +514,7 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
                   {[
                     { label: "Time", value: `${meta.time_seconds}s` },
                     { label: "Tokens Out", value: meta.tokens_out?.toLocaleString() ?? "–" },
+                    { label: meta.provider === "local" ? "Model (on this server)" : "Model", value: meta.model ?? "–" },
                   ].map((m) => (
                     <div key={m.label} className="bg-ndap-sky rounded-lg p-2.5 text-center">
                       <div className="text-ndap-navy font-bold text-sm">{m.value}</div>
@@ -583,7 +593,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote }: {
   const docLink = extractDocLink(answer);
   
   const isEmail = meta.agent === "draft_email" || answer.startsWith("**Subject:**") || answer.startsWith("Subject:");
-  const { processedText, citations } = buildInlineCitations(answer, chunks, isEmail);
+  const { processedText, citations } = buildInlineCitations(isEmail ? answer : formatAnswerFields(answer), chunks, isEmail);
 
   // If current message has no usable citations but is a map request, fall back to previous turn's map context
   const isMapRequest = MAP_REQUEST_RE.test(turn.query);
@@ -868,6 +878,7 @@ export default function ChatPage() {
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [model, setModel] = useState<ModelChoice>("gemini");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
@@ -888,7 +899,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => null);
+    setModel(loadModelChoice());
   }, []);
+
+  const localDown = health?.local_llm?.status === "down";
 
   const showChat = useCallback((cid: string, chId: string | null, name: string | null = null) => {
     viewRef.current += 1;
@@ -983,7 +997,7 @@ export default function ChatPage() {
           chId = (await getChatHistory(containerId)).chatId;
           if (view === viewRef.current) setChatId(chId);
         }
-        const result = await askQuery(q.trim(), containerId, "fast", selectedAgent, language, webSearchEnabled, chId);
+        const result = await askQuery(q.trim(), containerId, "fast", selectedAgent, language, webSearchEnabled, chId, model);
         setChatsVersion(v => v + 1);
         if (view !== viewRef.current) return;
         if (result.chat_name) setChatName(result.chat_name);
@@ -1001,7 +1015,7 @@ export default function ChatPage() {
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, chatId, containerId, selectedAgent, language, webSearchEnabled]
+    [loading, chatId, containerId, selectedAgent, language, webSearchEnabled, model]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1108,6 +1122,13 @@ export default function ChatPage() {
                       <Dot ok={health.elasticsearch} />
                       <span>{health.elasticsearch ? "Unstructured Data Online" : "Unstructured Data Offline"}</span>
                     </div>
+                    {health.local_llm && (
+                      <div className="flex items-center gap-2" title={health.local_llm.models
+                        ? `${health.local_llm.models.main.name} · ${health.local_llm.models.fast.name}` : health.local_llm.url}>
+                        <Dot ok={health.local_llm.status === "up"} />
+                        <span>{health.local_llm.status === "up" ? "Local LLM Online" : "Local LLM Offline"}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-[11px] text-gray-600">
                     <div><b className="text-ndap-navy">{health.stats.total_docs ?? "–"}</b> indexed files</div>
@@ -1231,6 +1252,25 @@ export default function ChatPage() {
                 </svg>
                 <span>Web Search</span>
               </button>
+
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600" title={MODEL_OPTIONS.find(o => o.value === model)?.hint}>
+                <span className="sr-only">Answer model</span>
+                <select
+                  value={model}
+                  disabled={loading}
+                  onChange={e => { const m = e.target.value as ModelChoice; setModel(m); saveModelChoice(m); }}
+                  className={clsx(
+                    "px-2 py-1.5 rounded-lg border bg-white text-xs font-semibold focus:outline-none disabled:opacity-40",
+                    model === "local" ? "border-emerald-400 text-emerald-700" : "border-gray-200 text-gray-600"
+                  )}
+                >
+                  {MODEL_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}{o.value === "local" && localDown ? " (offline)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <span className="text-[11px] text-gray-400 truncate max-w-[220px]" title={chatName ?? undefined}>
                 {activeContainer?.name ?? "All documents"} · {chatName ?? "New chat"}

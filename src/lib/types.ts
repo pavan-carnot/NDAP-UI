@@ -26,6 +26,8 @@ export interface QueryMeta {
   intent_metric?: string;
   focus_states?: string[];
   agent?: string;
+  model?: string;      // e.g. "gemini-2.5-flash" or "gpt-oss:20b"
+  provider?: string;   // "gemini" | "claude" | "local"
 }
 
 export interface QueryResult {
@@ -55,9 +57,21 @@ export interface Document {
   ingested_at?: string;
 }
 
+export interface LocalModelStatus {
+  name: string;
+  installed: boolean;
+  loaded: boolean;
+}
+
 export interface HealthStatus {
   postgres: boolean;
   elasticsearch: boolean;
+  default_model?: string;
+  local_llm?: {
+    status: "up" | "down";
+    url: string;
+    models?: { main: LocalModelStatus; fast: LocalModelStatus };
+  };
   stats: {
     total_docs?: number;
     total_chunks?: number;

@@ -123,7 +123,8 @@ export async function askQuery(
   agent?: string | null,
   language = "English",
   webSearchEnabled = false,
-  chatId?: string | null
+  chatId?: string | null,
+  model?: string
 ): Promise<AskResult> {
   const raw = await json<{
     answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"];
@@ -134,7 +135,7 @@ export async function askQuery(
       headers: { "Content-Type": "application/json", ...userHeaders() },
       body: JSON.stringify({
         message, sessionId, session_id: chatId ? sessionId : undefined, chat_id: chatId ?? undefined,
-        mode, agent, language, web_search_enabled: webSearchEnabled,
+        mode, model, agent, language, web_search_enabled: webSearchEnabled,
       }),
     })
   );
@@ -280,13 +281,14 @@ export interface KgStatus {
 export async function createGraph(
   sessionId: string,
   fileNames: string[],
-  isDense: boolean
+  isDense: boolean,
+  model?: string
 ): Promise<{ status: string; session_id: string }> {
   return json(
     await fetch(`${BASE}/v1/documents/graph`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, file_names: fileNames, is_dense: isDense }),
+      body: JSON.stringify({ session_id: sessionId, file_names: fileNames, is_dense: isDense, model }),
     })
   );
 }

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createGraph, getDocuments, getGraphStatus, KgStatus } from "@/lib/api";
 import type { Document } from "@/lib/types";
+import { MODEL_OPTIONS, loadModelChoice, saveModelChoice, type ModelChoice } from "@/lib/models";
 
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
@@ -37,6 +38,8 @@ export default function CreateGraph({
   const [docs, setDocs] = useState<Document[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isDense, setIsDense] = useState(false);
+  const [model, setModel] = useState<ModelChoice>("gemini");
+  useEffect(() => setModel(loadModelChoice()), []);
   const [status, setStatus] = useState<KgStatus>({ status: "not_started", progress: 0 });
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
@@ -113,7 +116,7 @@ export default function CreateGraph({
   async function handleCreate() {
     setError(null);
     try {
-      await createGraph(sessionId, [...selected], isDense);
+      await createGraph(sessionId, [...selected], isDense, model);
       setStatus({ status: "initializing", progress: 0, started_at: Date.now() / 1000 });
       startPolling();
     } catch (e) {
@@ -180,6 +183,21 @@ export default function CreateGraph({
                 ? "Reads every chunk and extracts explicit + implicit relationships. Slower, richer."
                 : "High-level: key entities from the most important sentences only. Faster."}
             </span>
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="block text-sm font-medium text-[#1e293b] mb-1">Extraction model</span>
+          <select
+            value={model}
+            disabled={running}
+            onChange={e => { const m = e.target.value as ModelChoice; setModel(m); saveModelChoice(m); }}
+            className="w-full text-sm rounded border border-[#d6cbb0] bg-white px-2 py-1.5 focus:outline-none focus:border-[#102C57]"
+          >
+            {MODEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <span className="block text-[11px] text-[#78716c] leading-snug mt-1">
+            {MODEL_OPTIONS.find(o => o.value === model)?.hint}
           </span>
         </label>
 
