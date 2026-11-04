@@ -22,7 +22,6 @@ import CitationMaps from "@/components/CitationMaps";
 import KnowledgeSidebar from "@/components/sidebar/KnowledgeSidebar";
 import FileIcon from "@/components/sidebar/FileIcon";
 import { loadActiveContainer, saveActiveContainer, useContainers } from "@/lib/use-containers";
-import { MODEL_OPTIONS, loadModelChoice, saveModelChoice, type ModelChoice } from "@/lib/models";
 import type { ChatTurn, HealthStatus, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
@@ -514,7 +513,7 @@ function TracePanel({ turn }: { turn: ChatTurn }) {
                   {[
                     { label: "Time", value: `${meta.time_seconds}s` },
                     { label: "Tokens Out", value: meta.tokens_out?.toLocaleString() ?? "–" },
-                    { label: meta.provider === "local" ? "Model (on this server)" : "Model", value: meta.model ?? "–" },
+                    { label: meta.provider === "local" ? "Model (on-premise)" : "Model", value: meta.model ?? "–" },
                   ].map((m) => (
                     <div key={m.label} className="bg-ndap-sky rounded-lg p-2.5 text-center">
                       <div className="text-ndap-navy font-bold text-sm">{m.value}</div>
@@ -878,7 +877,6 @@ export default function ChatPage() {
 
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-  const [model, setModel] = useState<ModelChoice>("gemini");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
@@ -899,10 +897,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => null);
-    setModel(loadModelChoice());
   }, []);
 
-  const localDown = health?.local_llm?.status === "down";
 
   const showChat = useCallback((cid: string, chId: string | null, name: string | null = null) => {
     viewRef.current += 1;
@@ -997,7 +993,7 @@ export default function ChatPage() {
           chId = (await getChatHistory(containerId)).chatId;
           if (view === viewRef.current) setChatId(chId);
         }
-        const result = await askQuery(q.trim(), containerId, "fast", selectedAgent, language, webSearchEnabled, chId, model);
+        const result = await askQuery(q.trim(), containerId, "fast", selectedAgent, language, webSearchEnabled, chId);
         setChatsVersion(v => v + 1);
         if (view !== viewRef.current) return;
         if (result.chat_name) setChatName(result.chat_name);
@@ -1015,7 +1011,7 @@ export default function ChatPage() {
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     },
-    [loading, chatId, containerId, selectedAgent, language, webSearchEnabled, model]
+    [loading, chatId, containerId, selectedAgent, language, webSearchEnabled]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1252,25 +1248,6 @@ export default function ChatPage() {
                 </svg>
                 <span>Web Search</span>
               </button>
-
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600" title={MODEL_OPTIONS.find(o => o.value === model)?.hint}>
-                <span className="sr-only">Answer model</span>
-                <select
-                  value={model}
-                  disabled={loading}
-                  onChange={e => { const m = e.target.value as ModelChoice; setModel(m); saveModelChoice(m); }}
-                  className={clsx(
-                    "px-2 py-1.5 rounded-lg border bg-white text-xs font-semibold focus:outline-none disabled:opacity-40",
-                    model === "local" ? "border-emerald-400 text-emerald-700" : "border-gray-200 text-gray-600"
-                  )}
-                >
-                  {MODEL_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}{o.value === "local" && localDown ? " (offline)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
 
               <span className="text-[11px] text-gray-400 truncate max-w-[220px]" title={chatName ?? undefined}>
                 {activeContainer?.name ?? "All documents"} · {chatName ?? "New chat"}
