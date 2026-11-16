@@ -205,9 +205,12 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
                     ]} />
                   </span>
                 </div>
-                {(f.tags ?? []).length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-0.5 pl-5">
-                    {(f.tags ?? []).slice(0, 4).map(tag => (
+                {(f.doc_type || (f.tags ?? []).length > 0) && (
+                  <div className="flex flex-wrap items-center gap-1 mt-0.5 pl-5">
+                    {f.doc_type && f.doc_type !== "General Document" && (
+                      <span className="text-[9px] font-semibold bg-ndap-navy/10 text-ndap-navy rounded px-1.5 py-px leading-tight">{f.doc_type}</span>
+                    )}
+                    {(f.tags ?? []).slice(0, 3).map(tag => (
                       <span key={tag} className="text-[9px] bg-gray-100 text-gray-500 rounded px-1.5 py-px leading-tight">{tag}</span>
                     ))}
                   </div>

@@ -320,6 +320,7 @@ export interface ContainerFile {
   error_message: string | null;
   added_at: string;
   tags?: string[];
+  doc_type?: string;
 }
 
 export interface KnowledgeContainer {

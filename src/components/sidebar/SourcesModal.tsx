@@ -259,6 +259,9 @@ export default function SourcesModal({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="flex-1 truncate" title={d.filename}>{d.filename}</span>
+                    {d.doc_type && d.doc_type !== "General Document" && (
+                      <span className="flex-shrink-0 text-[9px] font-semibold bg-ndap-navy/10 text-ndap-navy rounded px-1.5 py-px leading-tight">{d.doc_type}</span>
+                    )}
                     {d.total_chunks != null && <span className="text-gray-400 flex-shrink-0">{d.total_chunks} chunks</span>}
                   </div>
                   {(d.tags ?? []).length > 0 && (
