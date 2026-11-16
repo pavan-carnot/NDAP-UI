@@ -464,3 +464,17 @@ export const listNotes = (containerId: string) =>
 
 export const toggleNote = (containerId: string, chatId: string, messageId: string) =>
   send<{ save_to_note: boolean }>("/v1/queries/notes/toggle", "POST", { session_id: containerId, chat_id: chatId, message_id: messageId });
+
+export async function generateReport(
+  containerId: string,
+  templateId = "sitrep",
+  model?: string
+): Promise<Blob> {
+  const res = await fetch(`${BASE}/v1/reports/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...userHeaders() },
+    body: JSON.stringify({ session_id: containerId, template_id: templateId, model }),
+  });
+  if (!res.ok) throw new Error(await errorText(res));
+  return res.blob();
+}

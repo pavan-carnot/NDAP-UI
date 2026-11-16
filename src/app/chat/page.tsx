@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { Bookmark, BookmarkCheck, FileText, Folder, Loader2 } from "lucide-react";
 import {
   askQuery,
+  generateReport,
   getChatHistory,
   getHealth,
   GENERAL_WORKSPACE,
@@ -897,6 +898,7 @@ export default function ChatPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [sitrepLoading, setSitrepLoading] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
   const router = useRouter();
@@ -1100,6 +1102,26 @@ export default function ChatPage() {
     setIsListening(true);
   }, [isListening]);
 
+  const downloadSitrep = useCallback(async () => {
+    setSitrepLoading(true);
+    setError(null);
+    try {
+      const blob = await generateReport(containerId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `SITREP_${new Date().toISOString().slice(0, 10)}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate SITREP");
+    } finally {
+      setSitrepLoading(false);
+    }
+  }, [containerId]);
+
   return (
     <div className="flex-1 flex w-full px-2 py-3 gap-3 overflow-hidden min-h-0">
 
@@ -1251,6 +1273,21 @@ export default function ChatPage() {
               >
                 <span>📄</span>
                 <span>Generate Report</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadSitrep}
+                disabled={loading || sitrepLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 select-none bg-white border-gray-200 text-gray-600 hover:bg-ndap-sky hover:border-ndap-blue hover:text-ndap-navy"
+                title="Generate SITREP from indexed documents"
+              >
+                {sitrepLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5" />
+                )}
+                <span>SITREP</span>
               </button>
 
               <button
