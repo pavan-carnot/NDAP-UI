@@ -582,11 +582,12 @@ interface PdfTarget { url: string; page: number; filename: string; }
 const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|states?|chart|visual)\b|\bon (a |the )?map\b/i;
 
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote }: {
+function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote, onFollowUp }: {
   turn: ChatTurn;
   prevTurn?: ChatTurn;
   onOpenPdf: (t: PdfTarget) => void;
   onToggleNote?: () => void;
+  onFollowUp?: (q: string) => void;
 }) {
   const { answer, chunks, meta } = turn.result;
   const docLink = extractDocLink(answer);
@@ -738,6 +739,24 @@ function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote }: {
 
       {/* Generated document download card */}
       {docLink && <DocCard url={docLink.url} filename={docLink.filename} />}
+
+      {/* Follow-up question chips */}
+      {onFollowUp && (turn.result.follow_up_questions ?? []).length > 0 && (
+        <div className="mt-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Ask next</p>
+          <div className="flex flex-wrap gap-2">
+            {(turn.result.follow_up_questions ?? []).map((q, i) => (
+              <button
+                key={i}
+                onClick={() => onFollowUp(q)}
+                className="text-xs text-ndap-navy bg-ndap-sky/30 border border-ndap-blue/30 rounded-full px-3 py-1.5 hover:bg-ndap-sky hover:border-ndap-blue transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <TracePanel turn={turn} />
     </div>
@@ -1181,6 +1200,7 @@ export default function ChatPage() {
                   prevTurn={turns[i - 1]}
                   onOpenPdf={setPdfPanel}
                   onToggleNote={t.saved ? () => toggleTurnNote(t) : undefined}
+                  onFollowUp={(q) => { setInput(q); setTimeout(() => inputRef.current?.focus(), 50); }}
                 />
               ))}
               {loading && <LiveTrace query={pendingQuery} />}

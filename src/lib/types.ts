@@ -36,6 +36,7 @@ export interface QueryResult {
   chunks: Chunk[];
   context: string;
   meta: QueryMeta;
+  follow_up_questions?: string[];
 }
 
 export interface ChatTurn {

@@ -112,6 +112,7 @@ export async function clearStaleCache(): Promise<{ deleted: number }> {
 export interface AskResult extends QueryResult {
   turn_id?: string;
   chat_name?: string;
+  follow_up_questions?: string[];
 }
 
 // With chatId set, sessionId is the knowledge container ("general" = All documents)
@@ -128,7 +129,7 @@ export async function askQuery(
 ): Promise<AskResult> {
   const raw = await json<{
     answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"];
-    turn_id?: string; chat_name?: string;
+    turn_id?: string; chat_name?: string; follow_up_questions?: string[];
   }>(
     await fetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
@@ -148,6 +149,7 @@ export async function askQuery(
     meta: raw.metadata,
     turn_id: raw.turn_id,
     chat_name: raw.chat_name,
+    follow_up_questions: raw.follow_up_questions ?? [],
   };
 }
 
