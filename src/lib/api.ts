@@ -319,6 +319,7 @@ export interface ContainerFile {
   total_chunks: number | null;
   error_message: string | null;
   added_at: string;
+  tags?: string[];
 }
 
 export interface KnowledgeContainer {

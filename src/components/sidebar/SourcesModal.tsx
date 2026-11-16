@@ -253,11 +253,22 @@ export default function SourcesModal({
                 {library.length === 0 ? "No other indexed documents in the library." : "No documents match."}
               </p>
             ) : filteredLibrary.map(d => (
-              <label key={d.filename} className="flex items-center gap-2 px-2.5 py-2 text-xs cursor-pointer hover:bg-gray-50">
-                <input type="checkbox" checked={picked.has(d.filename)} onChange={() => togglePick(d.filename)} className="accent-[#8B1060]" />
+              <label key={d.filename} className="flex items-start gap-2 px-2.5 py-2 text-xs cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={picked.has(d.filename)} onChange={() => togglePick(d.filename)} className="accent-[#8B1060] mt-0.5 flex-shrink-0" />
                 <FileIcon filename={d.filename} />
-                <span className="flex-1 truncate" title={d.filename}>{d.filename}</span>
-                {d.total_chunks != null && <span className="text-gray-400">{d.total_chunks} chunks</span>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate" title={d.filename}>{d.filename}</span>
+                    {d.total_chunks != null && <span className="text-gray-400 flex-shrink-0">{d.total_chunks} chunks</span>}
+                  </div>
+                  {(d.tags ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(d.tags ?? []).slice(0, 5).map(tag => (
+                        <span key={tag} className="text-[9px] bg-ndap-sky text-ndap-navy rounded px-1.5 py-px leading-tight">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </label>
             ))}
           </div>

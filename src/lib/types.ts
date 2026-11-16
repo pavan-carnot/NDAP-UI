@@ -56,6 +56,7 @@ export interface Document {
   has_images?: boolean;
   images_extracted_count?: number;
   ingested_at?: string;
+  tags?: string[];
 }
 
 export interface LocalModelStatus {

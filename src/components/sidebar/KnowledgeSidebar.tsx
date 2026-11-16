@@ -182,27 +182,36 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
         ) : (
           <ul className="space-y-px max-h-64 overflow-y-auto">
             {c.files.map(f => (
-              <li key={f.filename} className="group/file flex items-center gap-1.5 rounded-md pl-2 pr-0.5 py-1 hover:bg-white/80">
-                <FileIcon filename={f.filename} />
-                <button
-                  onClick={() => f.status === "active" && onOpenFile(c.session_id, f.filename)}
-                  className={clsx("flex-1 truncate text-left text-xs", f.status === "active" ? "text-gray-700 hover:text-ndap-navy" : "text-gray-400 cursor-default")}
-                  title={f.status === "failed" ? `${f.filename}: ${f.error_message ?? "ingestion failed"}` : f.filename}
-                >
-                  {f.filename}
-                </button>
-                {isIndexing(f.status) && (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-700"><Loader2 className="w-3 h-3 animate-spin" />Indexing</span>
+              <li key={f.filename} className="group/file rounded-md pl-2 pr-0.5 py-1 hover:bg-white/80">
+                <div className="flex items-center gap-1.5">
+                  <FileIcon filename={f.filename} />
+                  <button
+                    onClick={() => f.status === "active" && onOpenFile(c.session_id, f.filename)}
+                    className={clsx("flex-1 truncate text-left text-xs", f.status === "active" ? "text-gray-700 hover:text-ndap-navy" : "text-gray-400 cursor-default")}
+                    title={f.status === "failed" ? `${f.filename}: ${f.error_message ?? "ingestion failed"}` : f.filename}
+                  >
+                    {f.filename}
+                  </button>
+                  {isIndexing(f.status) && (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-700"><Loader2 className="w-3 h-3 animate-spin" />Indexing</span>
+                  )}
+                  {f.status === "failed" && <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" aria-label="Ingestion failed" />}
+                  <span className="opacity-0 group-hover/file:opacity-100 focus-within:opacity-100">
+                    <ActionMenu label="File actions" items={[
+                      { label: "Open", icon: Eye, disabled: f.status !== "active", onClick: () => onOpenFile(c.session_id, f.filename) },
+                      ...(c.is_shared ? [] : [
+                        { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
+                      ]),
+                    ]} />
+                  </span>
+                </div>
+                {(f.tags ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-0.5 pl-5">
+                    {(f.tags ?? []).slice(0, 4).map(tag => (
+                      <span key={tag} className="text-[9px] bg-gray-100 text-gray-500 rounded px-1.5 py-px leading-tight">{tag}</span>
+                    ))}
+                  </div>
                 )}
-                {f.status === "failed" && <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" aria-label="Ingestion failed" />}
-                <span className="opacity-0 group-hover/file:opacity-100 focus-within:opacity-100">
-                  <ActionMenu label="File actions" items={[
-                    { label: "Open", icon: Eye, disabled: f.status !== "active", onClick: () => onOpenFile(c.session_id, f.filename) },
-                    ...(c.is_shared ? [] : [
-                      { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
-                    ]),
-                  ]} />
-                </span>
               </li>
             ))}
           </ul>
