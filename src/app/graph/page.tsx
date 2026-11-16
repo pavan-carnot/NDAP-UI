@@ -114,7 +114,12 @@ export default function GraphPage() {
             </div>
           )}
         </div>
-        {sessionId && !waiting && (
+        {container?.is_shared && (
+          <p className="px-4 py-3 text-xs text-[#78716c] leading-snug">
+            Shared by {container.shared_by}. Only the owner can build this container&apos;s graph.
+          </p>
+        )}
+        {sessionId && !waiting && !container?.is_shared && (
           <CreateGraph
             key={sessionId}
             sessionId={sessionId}
@@ -148,7 +153,9 @@ export default function GraphPage() {
               {container ? `No graph for ${container.name} yet` : "No graph for this session yet"}
             </p>
             <p className="text-sm">
-              {container ? "Create a graph from this container's documents on the left" : "Select documents on the left and create a graph"}
+              {container?.is_shared
+                ? "Its owner hasn't built one yet"
+                : container ? "Create a graph from this container's documents on the left" : "Select documents on the left and create a graph"}
             </p>
           </div>
         )}

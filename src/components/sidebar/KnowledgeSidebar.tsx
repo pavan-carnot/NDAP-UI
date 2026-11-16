@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   AlertCircle, Bookmark, ChevronRight, Eraser, Eye, FilePlus2, Folder, FolderOpen, Library,
-  Loader2, MessageSquare, Network, Pencil, Pin, PinOff, Plus, Trash2,
+  Loader2, MessageSquare, Network, Pencil, Pin, PinOff, Plus, Share2, Trash2, Users,
 } from "lucide-react";
 import {
   ChatSummary, deleteChat, deleteContainer, GENERAL_WORKSPACE, KnowledgeContainer, listChats,
@@ -15,6 +15,7 @@ import ActionMenu from "./ActionMenu";
 import FileIcon from "./FileIcon";
 import { ConfirmModal, RenameModal } from "./Modal";
 import NotesModal from "./NotesModal";
+import ShareModal from "./ShareModal";
 import SourcesModal from "./SourcesModal";
 
 type Tab = "files" | "chats";
@@ -22,6 +23,7 @@ type Tab = "files" | "chats";
 type Dialog =
   | { kind: "create" }
   | { kind: "add"; container: KnowledgeContainer }
+  | { kind: "share"; containerId: string }
   | { kind: "renameContainer"; container: KnowledgeContainer }
   | { kind: "deleteContainer"; container: KnowledgeContainer }
   | { kind: "removeFile"; container: KnowledgeContainer; filename: string; origin: string }
@@ -58,6 +60,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
   const [tabs, setTabs] = useState<Record<string, Tab>>({});
   const [chats, setChats] = useState<Record<string, ChatSummary[] | undefined>>({});
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [sharedOpen, setSharedOpen] = useState(true);
 
   const loadChats = useCallback(async (containerId: string) => {
     try {
@@ -86,12 +89,23 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
     if (chats[id] === undefined) loadChats(id);
   }
 
-  const pinned = containers.filter(c => c.is_pinned);
-  const others = containers.filter(c => !c.is_pinned);
+  const owned = containers.filter(c => !c.is_shared);
+  const shared = containers.filter(c => c.is_shared);
+  const pinned = owned.filter(c => c.is_pinned);
+  const others = owned.filter(c => !c.is_pinned);
 
   function containerMenu(c: KnowledgeContainer) {
     const ready = c.files.some(f => f.status === "active");
+    const graphItem = {
+      label: "Knowledge graph", icon: Network, disabled: !ready,
+      hint: ready ? undefined : "Add at least one indexed file first",
+      onClick: () => router.push(`/graph?container=${encodeURIComponent(c.session_id)}`),
+    };
+    const notesItem = { label: "Saved notes", icon: Bookmark, onClick: () => setDialog({ kind: "notes", containerId: c.session_id, name: c.name }) };
+    // Changing a shared container stays with its owner
+    if (c.is_shared) return [graphItem, notesItem];
     return [
+      { label: "Share container", icon: Share2, onClick: () => setDialog({ kind: "share", containerId: c.session_id }) },
       { label: "Add files", icon: FilePlus2, onClick: () => setDialog({ kind: "add", container: c }) },
       { label: "Rename", icon: Pencil, onClick: () => setDialog({ kind: "renameContainer", container: c }) },
       {
@@ -99,12 +113,8 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
         icon: c.is_pinned ? PinOff : Pin,
         onClick: async () => { await togglePinContainer(c.session_id); reloadContainers(); },
       },
-      {
-        label: "Knowledge graph", icon: Network, disabled: !ready,
-        hint: ready ? undefined : "Add at least one indexed file first",
-        onClick: () => router.push(`/graph?container=${encodeURIComponent(c.session_id)}`),
-      },
-      { label: "Saved notes", icon: Bookmark, onClick: () => setDialog({ kind: "notes", containerId: c.session_id, name: c.name }) },
+      graphItem,
+      notesItem,
       { label: "Delete container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "deleteContainer", container: c }) },
     ];
   }
@@ -188,17 +198,21 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
                 <span className="opacity-0 group-hover/file:opacity-100 focus-within:opacity-100">
                   <ActionMenu label="File actions" items={[
                     { label: "Open", icon: Eye, disabled: f.status !== "active", onClick: () => onOpenFile(c.session_id, f.filename) },
-                    { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
+                    ...(c.is_shared ? [] : [
+                      { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
+                    ]),
                   ]} />
                 </span>
               </li>
             ))}
           </ul>
         )}
-        <button onClick={() => setDialog({ kind: "add", container: c })}
-          className="w-full mt-1.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-ndap-navy bg-white border border-ndap-border rounded-md py-1 hover:border-ndap-navy/50">
-          <Plus className="w-3 h-3" /> Add files
-        </button>
+        {!c.is_shared && (
+          <button onClick={() => setDialog({ kind: "add", container: c })}
+            className="w-full mt-1.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-ndap-navy bg-white border border-ndap-border rounded-md py-1 hover:border-ndap-navy/50">
+            <Plus className="w-3 h-3" /> Add files
+          </button>
+        )}
       </div>
     );
   }
@@ -218,8 +232,16 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
           </button>
           <button onClick={() => onSelectContainer(id)} className="flex-1 min-w-0 flex items-center gap-1.5 text-left">
             {isOpen ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-[#C9A227]" /> : <Folder className="w-4 h-4 flex-shrink-0 text-[#C9A227]" />}
-            <span className={clsx("truncate text-[13px]", active ? "font-semibold text-gray-900" : "text-gray-800")} title={c.name}>{c.name}</span>
+            <span className="min-w-0 flex flex-col">
+              <span className={clsx("truncate text-[13px]", active ? "font-semibold text-gray-900" : "text-gray-800")} title={c.name}>{c.name}</span>
+              {c.shared_by && <span className="truncate text-[10px] text-gray-500" title={`Shared by ${c.shared_by}`}>from {c.shared_by}</span>}
+            </span>
           </button>
+          {c.shared_with.length > 0 && (
+            <span title={`Shared with ${c.shared_with.join(", ")}`} className="flex-shrink-0">
+              <Users className="w-3 h-3 text-ndap-navy/60" aria-label={`Shared with ${c.shared_with.length} people`} />
+            </span>
+          )}
           {c.is_pinned && <Pin className="w-3 h-3 text-ndap-navy/60 flex-shrink-0" aria-label="Favourite" />}
           {indexing > 0
             ? <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin flex-shrink-0" aria-label={`${indexing} file(s) indexing`} />
@@ -280,7 +302,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
           <p className="px-3 py-2 text-[11px] text-red-600">Couldn&apos;t load containers: {loadError}</p>
         ) : !loaded ? (
           <p className="px-3 py-2 text-[11px] text-gray-400">Loading…</p>
-        ) : containers.length === 0 ? (
+        ) : owned.length === 0 ? (
           <div className="px-3 py-4 text-center">
             <Folder className="w-6 h-6 mx-auto text-gray-300 mb-1.5" />
             <p className="text-xs text-gray-500">No containers yet</p>
@@ -289,6 +311,22 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
         ) : others.length === 0 ? (
           <p className="px-3 py-1.5 text-[11px] text-gray-400">All containers are in favourites.</p>
         ) : others.map(folder)}
+
+        {/* Only shown when someone has shared a container with this user */}
+        {shared.length > 0 && (
+          <>
+            <button
+              onClick={() => setSharedOpen(open => !open)}
+              aria-expanded={sharedOpen}
+              className="w-full flex items-center gap-1 px-1.5 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-600"
+            >
+              <ChevronRight className={clsx("w-3 h-3 transition-transform", sharedOpen && "rotate-90")} />
+              Shared containers
+              <span className="font-normal tabular-nums">{shared.length}</span>
+            </button>
+            {sharedOpen && shared.map(folder)}
+          </>
+        )}
       </div>
 
       {footer}
@@ -306,6 +344,10 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
           onDone={c => { reloadContainers(); setTabs(prev => ({ ...prev, [c.session_id]: "files" })); setExpanded(prev => new Set(prev).add(c.session_id)); }}
         />
       )}
+      {dialog?.kind === "share" && (() => {
+        const c = containers.find(x => x.session_id === dialog.containerId);
+        return c ? <ShareModal container={c} onClose={() => setDialog(null)} onChanged={reloadContainers} /> : null;
+      })()}
       {dialog?.kind === "renameContainer" && (
         <RenameModal
           title="Rename container"
@@ -325,6 +367,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             onConfirm={async () => { await deleteContainer(c.session_id); await reloadContainers(); onContainerDeleted(c.session_id); }}
             message={<>
               <p>This permanently deletes its {chats[c.session_id]?.length ?? c.chat_count} chat(s), saved notes and knowledge graph.</p>
+              {c.shared_with.length > 0 && <p className="mt-2">{c.shared_with.length} person(s) it&apos;s shared with also lose access, along with their chats and notes in it.</p>}
               {uploads > 0 && <p className="mt-2">The {uploads} file(s) uploaded into this container are deleted from the server unless another container uses them.</p>}
               {c.files.length - uploads > 0 && <p className="mt-2 text-gray-500">Documents added from the library stay in the library.</p>}
             </>}

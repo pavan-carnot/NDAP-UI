@@ -328,6 +328,9 @@ export interface KnowledgeContainer {
   chat_count: number;
   files: ContainerFile[];
   file_names: string[];
+  is_shared: boolean;          // true when another user owns it and shared it with you
+  shared_by: string | null;    // the owner, for a container shared with you
+  shared_with: string[];       // who you've shared it with, for a container you own
 }
 
 export interface ChatSummary {
@@ -382,10 +385,17 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T>
 
 const enc = encodeURIComponent;
 
+// Your own containers, then the ones shared with you (is_shared tells them apart)
 export async function listContainers(): Promise<KnowledgeContainer[]> {
-  const res = await send<{ data: { sessions: KnowledgeContainer[] } }>("/v1/documents/containers", "GET");
-  return res.data.sessions;
+  const res = await send<{ data: { sessions: KnowledgeContainer[]; shared?: KnowledgeContainer[] } }>("/v1/documents/containers", "GET");
+  return [...res.data.sessions, ...(res.data.shared ?? [])];
 }
+
+export const shareContainer = (id: string, username: string) =>
+  send<{ shared_with: string[] }>(`/v1/documents/containers/${enc(id)}/shares`, "POST", { username }).then(r => r.shared_with);
+
+export const unshareContainer = (id: string, username: string) =>
+  send<{ shared_with: string[] }>(`/v1/documents/containers/${enc(id)}/shares/${enc(username)}`, "DELETE").then(r => r.shared_with);
 
 // replace: an upload whose name is already indexed overwrites and re-indexes that copy
 function sourcesForm(files: File[], libraryFiles: string[], useVision: boolean, replace: boolean) {
