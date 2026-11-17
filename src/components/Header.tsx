@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
   { href: "/map",   label: "Spatial Analytics" },
   { href: "/graph", label: "Link Analysis" },
+  { href: "/timeline", label: "Timeline" },
   { href: "/admin", label: "Admin & Data" },
 ];
 

@@ -307,6 +307,76 @@ export async function getGraphData(sessionId: string): Promise<KgGraphData> {
   );
 }
 
+// ── Corpus-wide entity index (built at ingest time, all library documents) ──
+
+function query(params: Record<string, string | number | null | undefined>): string {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== "") q.set(k, String(v));
+  });
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+export interface EntityHit {
+  key: string;
+  name: string;
+  type: string;
+  docs: number;
+  mentions: number;
+}
+
+export interface EntityDossier {
+  key: string;
+  name: string;
+  type: string;
+  doc_count: number;
+  mention_count: number;
+  documents: { filename: string; doc_type: string | null; mentions: number; pages: string[] }[];
+  related: {
+    key: string; name: string; entity_type: string; type: string;
+    outgoing: boolean; files: string[]; evidence: string | null;
+  }[];
+  co_occurring: { key: string; name: string; type: string; passages: number; docs: number }[];
+  timeline: { date: string; count: number }[];
+}
+
+export async function getEntityTypes(): Promise<{ type: string; count: number }[]> {
+  return json(await fetch(`${BASE}/v1/entities/types`));
+}
+
+export async function searchEntities(q: string, type?: string | null, limit = 50): Promise<EntityHit[]> {
+  return json(await fetch(`${BASE}/v1/entities/search${query({ q, type, limit })}`));
+}
+
+export async function getEntityGraph(center?: string | null, limit = 150): Promise<KgGraphData> {
+  return json(await fetch(`${BASE}/v1/entities/graph${query({ center, limit })}`));
+}
+
+export async function getEntityDossier(key: string): Promise<EntityDossier> {
+  return json(await fetch(`${BASE}/v1/entities/dossier${query({ key })}`));
+}
+
+export type TimelineInterval = "day" | "week" | "month" | "quarter" | "year";
+
+export interface TimelineResult {
+  buckets: { date: string; count: number }[];
+  hits: {
+    text: string; source: string; page: string; dates: string[];
+    entities: { key: string; name: string }[];
+  }[];
+  total: number;
+  date_min: string | null;
+  date_max: string | null;
+}
+
+export async function getTimeline(params: {
+  start?: string; end?: string; q?: string; entity?: string | null;
+  interval?: TimelineInterval; size?: number;
+}): Promise<TimelineResult> {
+  return json(await fetch(`${BASE}/v1/timeline${query(params)}`));
+}
+
 
 // ── Knowledge containers ────────────────────────────────────────────────────
 

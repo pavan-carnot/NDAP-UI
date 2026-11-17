@@ -14,13 +14,14 @@ interface Category { key: string; name: string; color: string; match: RegExp }
 
 const CATEGORIES: Category[] = [
   { key: "person",   name: "Person",            color: "#2a78d6", match: /person|people|author|individual|researcher|official|leader/i },
-  { key: "org",      name: "Organization",      color: "#eb6834", match: /org|company|institut|ministry|department|agency|university|government|committee|bank/i },
-  { key: "place",    name: "Location",          color: "#1baf7a", match: /locat|place|city|state|country|gpe|region|district|village/i },
-  { key: "event",    name: "Event",             color: "#eda100", match: /event|conference|meeting|summit/i },
+  { key: "org",      name: "Organization",      color: "#eb6834", match: /org|company|institut|ministry|department|agency|university|government|committee|bank|military unit|battalion|brigade|regiment|division|corps/i },
+  { key: "place",    name: "Location",          color: "#1baf7a", match: /locat|place|city|state|country|gpe|region|district|village|facility/i },
+  { key: "event",    name: "Event",             color: "#eda100", match: /event|conference|meeting|summit|operation|incident/i },
   { key: "date",     name: "Date / Time",       color: "#e87ba4", match: /date|year|time|period|month/i },
   { key: "metric",   name: "Metric",            color: "#008300", match: /metric|statistic|number|value|quantity|measure|percent|amount|indicator/i },
   { key: "document", name: "Document / Source", color: "#6250d6", match: /document|publication|report|paper|book|url|reference|journal|article|figure|table/i },
   { key: "policy",   name: "Scheme / Policy",   color: "#e34948", match: /scheme|policy|program|law|act\b|initiative|mission|regulation/i },
+  { key: "materiel", name: "Weapon / Equipment", color: "#008a9e", match: /weapon|equipment|vehicle|aircraft|missile/i },
 ];
 const OTHER: Category = { key: "other", name: "Concept / Other", color: "#a8a29e", match: /.*/ };
 
@@ -71,7 +72,15 @@ const esc = (s: string) =>
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function GraphComponent({ data }: { data: KgGraphData }) {
+export default function GraphComponent({
+  data, entityExtra, initialSelectedId,
+}: {
+  data: KgGraphData;
+  /** Entity to select when the data loads */
+  initialSelectedId?: string | null;
+  /** Extra content at the bottom of the selected entity's panel (e.g. a dossier) */
+  entityExtra?: (node: KgNode) => React.ReactNode;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -127,9 +136,9 @@ export default function GraphComponent({ data }: { data: KgGraphData }) {
   useEffect(() => {
     setHiddenLabels(new Set());
     setHiddenRels(new Set());
-    setSelectedId(null);
+    setSelectedId(initialSelectedId && data.nodes.some(n => n.id === initialSelectedId) ? initialSelectedId : null);
     setFocusId(null);
-  }, [data]);
+  }, [data, initialSelectedId]);
 
   // Graph after alias folding + label/relationship filters (before top-N / focus)
   const baseGraph = useMemo(() => {
@@ -689,6 +698,7 @@ export default function GraphComponent({ data }: { data: KgGraphData }) {
                 onFocus={() => setFocusId(selectedNode.id)}
                 onSelect={goTo}
                 onClose={() => setSelectedId(null)}
+                extra={entityExtra?.(selectedNode)}
               />
             ) : (
               <>
@@ -720,7 +730,7 @@ export default function GraphComponent({ data }: { data: KgGraphData }) {
 const HIDDEN_PROPS = new Set(["entity_name"]);
 
 function EntityPanel({
-  node, aliases, degree, groups, nameOf, colorOf, isFocused, onFocus, onSelect, onClose,
+  node, aliases, degree, groups, nameOf, colorOf, isFocused, onFocus, onSelect, onClose, extra,
 }: {
   node: KgNode;
   aliases: string[];
@@ -732,6 +742,7 @@ function EntityPanel({
   onFocus: () => void;
   onSelect: (id: string) => void;
   onClose: () => void;
+  extra?: React.ReactNode;
 }) {
   const cat = categoryOf(primaryLabel(node));
   const props = Object.entries(node.properties).filter(
@@ -818,6 +829,8 @@ function EntityPanel({
           </div>
         </section>
       )}
+
+      {extra}
     </div>
   );
 }
