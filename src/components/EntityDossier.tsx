@@ -2,10 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { getEntityDossier, EntityDossier as Dossier } from "@/lib/api";
+import { getEntityDossier, EntityDossier as Dossier, libraryFileUrl } from "@/lib/api";
 import TimelineBars from "@/components/TimelineBars";
 
-const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/api/docs").replace(/\/$/, "");
 
 function Heading({ children }: { children: React.ReactNode }) {
   return <p className="text-[10px] font-bold text-[#102C57] uppercase tracking-wide mb-1.5">{children}</p>;
@@ -13,7 +12,7 @@ function Heading({ children }: { children: React.ReactNode }) {
 
 function docHref(filename: string, pages: string[]): string {
   const page = pages.find(p => /^\d+$/.test(p));
-  return `${DOCS_BASE}/${encodeURIComponent(filename)}${page && filename.toLowerCase().endsWith(".pdf") ? `#page=${page}` : ""}`;
+  return `${libraryFileUrl(filename)}${page && filename.toLowerCase().endsWith(".pdf") ? `#page=${page}` : ""}`;
 }
 
 /** Everything the corpus-wide entity index knows about one entity, across all documents. */

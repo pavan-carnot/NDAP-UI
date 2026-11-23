@@ -5,6 +5,8 @@ import { Library, Search, Upload, X } from "lucide-react";
 import clsx from "clsx";
 import { addSources, createContainer, getDocuments, KnowledgeContainer, SourceUploadResult } from "@/lib/api";
 import type { Document } from "@/lib/types";
+import { isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import { Button, Modal } from "./Modal";
 import FileIcon from "./FileIcon";
 
@@ -26,6 +28,8 @@ export default function SourcesModal({
   onDone: (container: KnowledgeContainer) => void;
 }) {
   const creating = !container;
+  // Linking from the library and replacing an indexed document are admin-only
+  const admin = isAdmin(useAuth().user);
   const [tab, setTab] = useState<"upload" | "library">("upload");
   const [name, setName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -43,13 +47,14 @@ export default function SourcesModal({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!admin) { setLibrary([]); return; }
     getDocuments()
       .then(docs => {
         setIndexed(new Map(docs.map(d => [d.filename, d.status])));
         setLibrary(docs.filter(d => d.status === "active" && !container?.file_names.includes(d.filename)));
       })
       .catch(() => setLibrary([]));
-  }, [container]);
+  }, [container, admin]);
 
   const filteredLibrary = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -137,7 +142,8 @@ export default function SourcesModal({
       )}
 
       <div className="flex border-b border-gray-200 mb-3 text-xs font-semibold">
-        {([["upload", Upload, "Upload files", files.length], ["library", Library, "From document library", picked.size]] as const).map(
+        {([["upload", Upload, "Upload files", files.length], ["library", Library, "From document library", picked.size]] as const)
+          .filter(([key]) => admin || key === "upload").map(
           ([key, Icon, label, count]) => (
             <button
               key={key}

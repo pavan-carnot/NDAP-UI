@@ -1,4 +1,3 @@
-import { getAuthUser } from "./auth";
 import type {
   QueryResult,
   HealthStatus,
@@ -10,10 +9,19 @@ import type {
 
 const BASE = "/api";
 
-// Containers and chats are owned by the signed-in user
-function userHeaders(): Record<string, string> {
-  const user = typeof window === "undefined" ? null : getAuthUser();
-  return user ? { "X-User": user } : {};
+// Every call carries the session cookie (same origin). A lost session or a pending
+// password change is announced to AuthProvider, which redirects.
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, { credentials: "same-origin", ...init });
+  if (typeof window !== "undefined") {
+    if (res.status === 401) {
+      window.dispatchEvent(new Event("ndap:unauthorized"));
+    } else if (res.status === 403) {
+      const body = await res.clone().json().catch(() => null);
+      if (body?.detail === "password_change_required") window.dispatchEvent(new Event("ndap:password-change"));
+    }
+  }
+  return res;
 }
 
 // FastAPI errors arrive as {"detail": "..."}; surface just the message
@@ -32,7 +40,7 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export async function getHealth(): Promise<HealthStatus> {
-  return json<HealthStatus>(await fetch(`${BASE}/health`));
+  return json<HealthStatus>(await apiFetch(`${BASE}/health`));
 }
 
 export async function runQuery(
@@ -42,7 +50,7 @@ export async function runQuery(
   agent?: string | null
 ): Promise<QueryResult> {
   return json<QueryResult>(
-    await fetch(`${BASE}/query`, {
+    await apiFetch(`${BASE}/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, session_id: sessionId, model, agent }),
@@ -51,14 +59,14 @@ export async function runQuery(
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  return json<Document[]>(await fetch(`${BASE}/documents`));
+  return json<Document[]>(await apiFetch(`${BASE}/documents`));
 }
 
 export async function deleteDocument(
   filename: string
 ): Promise<{ pg: unknown; es_removed: number }> {
   return json(
-    await fetch(`${BASE}/documents/${encodeURIComponent(filename)}`, {
+    await apiFetch(`${BASE}/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
     })
   );
@@ -73,38 +81,38 @@ export async function uploadDocument(
   fd.append("file", file);
   fd.append("use_vision", String(useVision));
   fd.append("use_structurer", String(useStructurer));
-  return json(await fetch(`${BASE}/documents/upload`, { method: "POST", body: fd }));
+  return json(await apiFetch(`${BASE}/documents/upload`, { method: "POST", body: fd }));
 }
 
 export async function getRecentQueries(limit = 10): Promise<RecentQuery[]> {
-  return json<RecentQuery[]>(await fetch(`${BASE}/queries/recent?limit=${limit}`));
+  return json<RecentQuery[]>(await apiFetch(`${BASE}/queries/recent?limit=${limit}`));
 }
 
 export async function getTableData(
   table: string,
   limit = 50
 ): Promise<Record<string, unknown>[]> {
-  return json(await fetch(`${BASE}/db/${table}?limit=${limit}`));
+  return json(await apiFetch(`${BASE}/db/${table}?limit=${limit}`));
 }
 
 export async function getEsChunks(filename: string): Promise<EsChunk[]> {
   return json<EsChunk[]>(
-    await fetch(`${BASE}/es/chunks/${encodeURIComponent(filename)}`)
+    await apiFetch(`${BASE}/es/chunks/${encodeURIComponent(filename)}`)
   );
 }
 
 export async function getLogs(): Promise<string[]> {
-  return json<string[]>(await fetch(`${BASE}/logs`));
+  return json<string[]>(await apiFetch(`${BASE}/logs`));
 }
 
 export async function getLogContent(
   filename: string
 ): Promise<{ filename: string; content: string }> {
-  return json(await fetch(`${BASE}/logs/${encodeURIComponent(filename)}`));
+  return json(await apiFetch(`${BASE}/logs/${encodeURIComponent(filename)}`));
 }
 
 export async function clearStaleCache(): Promise<{ deleted: number }> {
-  return json(await fetch(`${BASE}/cache/stale`, { method: "DELETE" }));
+  return json(await apiFetch(`${BASE}/cache/stale`, { method: "DELETE" }));
 }
 
 // ── v1 API (multi-agent workflow) ──────────────────────────────────────────
@@ -131,9 +139,9 @@ export async function askQuery(
     answer: string; chunks: QueryResult["chunks"]; metadata: QueryResult["meta"];
     turn_id?: string; chat_name?: string; follow_up_questions?: string[];
   }>(
-    await fetch(`${BASE}/v1/queries/ask`, {
+    await apiFetch(`${BASE}/v1/queries/ask`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...userHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message, sessionId, session_id: chatId ? sessionId : undefined, chat_id: chatId ?? undefined,
         mode, model, agent, language, web_search_enabled: webSearchEnabled,
@@ -154,11 +162,11 @@ export async function askQuery(
 }
 
 export async function getSkills(): Promise<Skill[]> {
-  return json<Skill[]>(await fetch(`${BASE}/v1/skills`));
+  return json<Skill[]>(await apiFetch(`${BASE}/v1/skills`));
 }
 
 export async function resetSession(sessionId: string): Promise<void> {
-  await fetch(`${BASE}/v1/session/reset`, {
+  await apiFetch(`${BASE}/v1/session/reset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId }),
@@ -185,7 +193,7 @@ export type MapDataPoint = {
 };
 
 export async function getMapDatasets(): Promise<MapDataset[]> {
-  return json<MapDataset[]>(await fetch(`${BASE}/map/datasets`));
+  return json<MapDataset[]>(await apiFetch(`${BASE}/map/datasets`));
 }
 
 const mapMetricsCache = new Map<string, Promise<string[]>>();
@@ -215,7 +223,7 @@ export function getMapMetrics(sourceFile: string): Promise<string[]> {
   const promise = (async () => {
     await _acquireSlot();
     try {
-      const res = await fetch(`${BASE}/map/metrics?source_file=${encodeURIComponent(sourceFile)}`);
+      const res = await apiFetch(`${BASE}/map/metrics?source_file=${encodeURIComponent(sourceFile)}`);
       if (!res.ok) throw new Error("Failed to fetch map metrics");
       return await res.json() as string[];
     } finally {
@@ -231,7 +239,7 @@ export async function getMapData(datasetId: string, states?: string[]): Promise<
   if (states && states.length > 0) {
     url += `&states=${encodeURIComponent(states.join(","))}`;
   }
-  return json<MapDataPoint[]>(await fetch(url));
+  return json<MapDataPoint[]>(await apiFetch(url));
 }
 
 // ── Link Analysis (Neo4j knowledge graph) ──────────────────────────────────
@@ -287,7 +295,7 @@ export async function createGraph(
   model?: string
 ): Promise<{ status: string; session_id: string }> {
   return json(
-    await fetch(`${BASE}/v1/documents/graph`, {
+    await apiFetch(`${BASE}/v1/documents/graph`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: sessionId, file_names: fileNames, is_dense: isDense, model }),
@@ -297,13 +305,13 @@ export async function createGraph(
 
 export async function getGraphStatus(sessionId: string): Promise<KgStatus> {
   return json<KgStatus>(
-    await fetch(`${BASE}/v1/documents/graph/status?session_id=${encodeURIComponent(sessionId)}`)
+    await apiFetch(`${BASE}/v1/documents/graph/status?session_id=${encodeURIComponent(sessionId)}`)
   );
 }
 
 export async function getGraphData(sessionId: string): Promise<KgGraphData> {
   return json<KgGraphData>(
-    await fetch(`${BASE}/v1/documents/graph/data?session_id=${encodeURIComponent(sessionId)}`)
+    await apiFetch(`${BASE}/v1/documents/graph/data?session_id=${encodeURIComponent(sessionId)}`)
   );
 }
 
@@ -342,19 +350,19 @@ export interface EntityDossier {
 }
 
 export async function getEntityTypes(): Promise<{ type: string; count: number }[]> {
-  return json(await fetch(`${BASE}/v1/entities/types`));
+  return json(await apiFetch(`${BASE}/v1/entities/types`));
 }
 
 export async function searchEntities(q: string, type?: string | null, limit = 50): Promise<EntityHit[]> {
-  return json(await fetch(`${BASE}/v1/entities/search${query({ q, type, limit })}`));
+  return json(await apiFetch(`${BASE}/v1/entities/search${query({ q, type, limit })}`));
 }
 
 export async function getEntityGraph(center?: string | null, limit = 150): Promise<KgGraphData> {
-  return json(await fetch(`${BASE}/v1/entities/graph${query({ center, limit })}`));
+  return json(await apiFetch(`${BASE}/v1/entities/graph${query({ center, limit })}`));
 }
 
 export async function getEntityDossier(key: string): Promise<EntityDossier> {
-  return json(await fetch(`${BASE}/v1/entities/dossier${query({ key })}`));
+  return json(await apiFetch(`${BASE}/v1/entities/dossier${query({ key })}`));
 }
 
 export type TimelineInterval = "day" | "week" | "month" | "quarter" | "year";
@@ -374,7 +382,7 @@ export async function getTimeline(params: {
   start?: string; end?: string; q?: string; entity?: string | null;
   interval?: TimelineInterval; size?: number;
 }): Promise<TimelineResult> {
-  return json(await fetch(`${BASE}/v1/timeline${query(params)}`));
+  return json(await apiFetch(`${BASE}/v1/timeline${query(params)}`));
 }
 
 
@@ -391,21 +399,45 @@ export interface ContainerFile {
   added_at: string;
   tags?: string[];
   doc_type?: string;
+  approval_status?: "approved" | "not_approved" | null;
+}
+
+// owner: created it (or you're an admin); editor: can add/remove files and build the graph;
+// viewer: read and ask
+export type ContainerAccess = "owner" | "editor" | "viewer";
+
+export interface ContainerShare {
+  username: string;
+  access: "viewer" | "editor";
 }
 
 export interface KnowledgeContainer {
   session_id: string;
   name: string;
-  is_pinned: boolean;
+  owner: string;
+  access: ContainerAccess;     // your access level
+  is_pinned: boolean;          // your own pin
   created_at: string;
   timestamp: string;
-  chat_count: number;
+  chat_count: number;          // your own chats
   files: ContainerFile[];
   file_names: string[];
-  is_shared: boolean;          // true when another user owns it and shared it with you
+  is_shared: boolean;          // true when another user owns it and it is shared with you
   shared_by: string | null;    // the owner, for a container shared with you
-  shared_with: string[];       // who you've shared it with, for a container you own
+  shared_with: ContainerShare[];  // who else has access (owners and admins see this)
+  share_count: number;
 }
+
+export const canEdit = (c: KnowledgeContainer | null | undefined) => c?.access === "owner" || c?.access === "editor";
+export const isOwner = (c: KnowledgeContainer | null | undefined) => c?.access === "owner";
+
+// Opening a document goes through the backend, which checks your access to the container
+export const containerFileUrl = (containerId: string, filename: string) =>
+  `${BASE}/v1/documents/files/${encodeURIComponent(containerId)}/${encodeURIComponent(filename)}`;
+
+// Any library document; admins only (corpus-wide pages)
+export const libraryFileUrl = (filename: string) =>
+  `${BASE}/v1/documents/library/${encodeURIComponent(filename)}`;
 
 export interface ChatSummary {
   chat_id: string;
@@ -449,9 +481,9 @@ export interface SourceUploadResult {
 
 async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
   return json<T>(
-    await fetch(`${BASE}${path}`, {
+    await apiFetch(`${BASE}${path}`, {
       method,
-      headers: { ...userHeaders(), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
   );
@@ -465,11 +497,66 @@ export async function listContainers(): Promise<KnowledgeContainer[]> {
   return [...res.data.sessions, ...(res.data.shared ?? [])];
 }
 
-export const shareContainer = (id: string, username: string) =>
-  send<{ shared_with: string[] }>(`/v1/documents/containers/${enc(id)}/shares`, "POST", { username }).then(r => r.shared_with);
+// ── Sharing and accounts (admins; auditors may read) ─────────────────────────
+
+export interface ShareEntry extends ContainerShare {
+  display_name: string | null;
+  is_active: boolean | null;
+  granted_by: string;
+  granted_at: string;
+}
+
+export const listShares = (id: string) =>
+  send<{ shares: ShareEntry[] }>(`/v1/admin/containers/${enc(id)}/shares`, "GET").then(r => r.shares);
+
+export const shareContainer = (id: string, username: string, access: "viewer" | "editor") =>
+  send<{ shares: ShareEntry[] }>(`/v1/admin/containers/${enc(id)}/shares/${enc(username)}`, "PUT", { access }).then(r => r.shares);
 
 export const unshareContainer = (id: string, username: string) =>
-  send<{ shared_with: string[] }>(`/v1/documents/containers/${enc(id)}/shares/${enc(username)}`, "DELETE").then(r => r.shared_with);
+  send<{ shares: ShareEntry[] }>(`/v1/admin/containers/${enc(id)}/shares/${enc(username)}`, "DELETE").then(r => r.shares);
+
+export const listAllContainers = () =>
+  send<{ containers: KnowledgeContainer[] }>("/v1/admin/containers", "GET").then(r => r.containers);
+
+export interface UserAccount {
+  username: string;
+  display_name: string;
+  role: "admin" | "user";
+  permissions: ("reviewer" | "auditor")[];
+  is_active: boolean;
+  must_change_password: boolean;
+  locked_until: string | null;
+  created_by: string | null;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export const listUsers = () => send<{ users: UserAccount[] }>("/v1/admin/users", "GET").then(r => r.users);
+
+export const createUser = (u: { username: string; password: string; display_name: string; role: string; permissions: string[] }) =>
+  send<UserAccount>("/v1/admin/users", "POST", u);
+
+export const updateUser = (username: string, changes: Partial<Pick<UserAccount, "display_name" | "role" | "is_active" | "permissions">>) =>
+  send<UserAccount>(`/v1/admin/users/${enc(username)}`, "PATCH", changes);
+
+export const resetUserPassword = (username: string, password: string) =>
+  send<UserAccount>(`/v1/admin/users/${enc(username)}/reset-password`, "POST", { password });
+
+export interface AuditEntry {
+  id: number;
+  actor: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+export const listAudit = (params: { actor?: string; action?: string; target_id?: string; since?: string; until?: string; limit?: number; offset?: number }) =>
+  send<{ total: number; entries: AuditEntry[] }>(`/v1/admin/audit${query(params)}`, "GET");
+
+export const setApproval = (filename: string, status: "approved" | "not_approved" | null) =>
+  send(`/v1/documents/approval`, "PUT", { filename, status });
 
 // replace: an upload whose name is already indexed overwrites and re-indexes that copy
 function sourcesForm(files: File[], libraryFiles: string[], useVision: boolean, replace: boolean) {
@@ -486,7 +573,7 @@ export async function createContainer(
 ): Promise<SourceUploadResult> {
   const fd = sourcesForm(files, libraryFiles, useVision, replace);
   if (name.trim()) fd.append("name", name.trim());
-  return json(await fetch(`${BASE}/v1/documents/upload`, { method: "POST", headers: userHeaders(), body: fd }));
+  return json(await apiFetch(`${BASE}/v1/documents/upload`, { method: "POST", body: fd }));
 }
 
 export async function addSources(
@@ -494,7 +581,7 @@ export async function addSources(
 ): Promise<SourceUploadResult> {
   const fd = sourcesForm(files, libraryFiles, useVision, replace);
   fd.append("session_id", containerId);
-  return json(await fetch(`${BASE}/v1/documents/add-upload`, { method: "POST", headers: userHeaders(), body: fd }));
+  return json(await apiFetch(`${BASE}/v1/documents/add-upload`, { method: "POST", body: fd }));
 }
 
 export const renameContainer = (id: string, newName: string) =>
@@ -542,9 +629,9 @@ export async function generateReport(
   templateId = "sitrep",
   model?: string
 ): Promise<Blob> {
-  const res = await fetch(`${BASE}/v1/reports/generate`, {
+  const res = await apiFetch(`${BASE}/v1/reports/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...userHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: containerId, template_id: templateId, model }),
   });
   if (!res.ok) throw new Error(await errorText(res));

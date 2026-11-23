@@ -37,12 +37,13 @@ export function useContainers() {
   return { containers, loaded, error, reload };
 }
 
-const ACTIVE_KEY = "ndap_active_container";
+// Per user, so two people sharing a browser don't open each other's last container
+const activeKey = (username: string) => `ndap_active_container:${username}`;
 
-export function loadActiveContainer(): string | null {
-  try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
+export function loadActiveContainer(username: string): string | null {
+  try { return localStorage.getItem(activeKey(username)); } catch { return null; }
 }
 
-export function saveActiveContainer(id: string) {
-  try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* storage unavailable */ }
+export function saveActiveContainer(username: string, id: string) {
+  try { localStorage.setItem(activeKey(username), id); } catch { /* storage unavailable */ }
 }

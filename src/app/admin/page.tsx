@@ -14,8 +14,11 @@ import {
   getHealth,
 } from "@/lib/api";
 import type { Document, HealthStatus, EsChunk } from "@/lib/types";
+import { hasPermission, isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
+import { AuditTab, ContainersTab, UsersTab } from "@/components/admin/AccessTabs";
 
-type Tab = "ingest" | "elastic" | "postgres" | "logs";
+type Tab = "ingest" | "elastic" | "postgres" | "logs" | "users" | "containers" | "audit";
 
 const PG_TABLES = [
   "documents",
@@ -575,7 +578,11 @@ function LogsTab() {
 
 /* ── Admin page ───────────────────────────────────────────────────── */
 export default function AdminPage() {
-  const [tab, setTab] = useState<Tab>("ingest");
+  const { user } = useAuth();
+  const admin = isAdmin(user);
+  // Auditors (without the admin role) see only the read-only access report and audit log
+  const auditor = hasPermission(user, "auditor");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
 
   useEffect(() => {
@@ -583,11 +590,20 @@ export default function AdminPage() {
   }, []);
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "ingest",   label: "File Ingestion",   icon: "📂" },
-    { id: "elastic",  label: "Chunks",    icon: "🔍" },
-    { id: "postgres", label: "Tables",   icon: "🗃️" },
-    { id: "logs",     label: "Logs Viewer",       icon: "📋" },
+    ...(admin ? [
+      { id: "ingest" as Tab,   label: "File Ingestion", icon: "📂" },
+      { id: "elastic" as Tab,  label: "Chunks",         icon: "🔍" },
+      { id: "postgres" as Tab, label: "Tables",         icon: "🗃️" },
+      { id: "logs" as Tab,     label: "Logs Viewer",    icon: "📋" },
+      { id: "users" as Tab,    label: "Users",          icon: "👤" },
+    ] : []),
+    ...(auditor ? [
+      { id: "containers" as Tab, label: admin ? "Containers & Sharing" : "Access Report", icon: "🗂️" },
+      { id: "audit" as Tab,      label: "Audit Log",    icon: "🧾" },
+    ] : []),
   ];
+  const current = tab ?? tabs[0]?.id ?? null;
+  if (!user || !auditor) return null;   // AuthProvider sends others away
 
   return (
     <div className="max-w-screen-xl mx-auto w-full px-4 py-6 overflow-y-auto flex-1">
@@ -628,7 +644,7 @@ export default function AdminPage() {
             onClick={() => setTab(t.id)}
             className={clsx(
               "flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
-              tab === t.id
+              current === t.id
                 ? "border-b-2 border-ndap-navy text-ndap-navy"
                 : "text-gray-500 hover:text-ndap-blue hover:bg-ndap-sky rounded-t-lg"
             )}
@@ -641,10 +657,13 @@ export default function AdminPage() {
 
       {/* Tab content */}
       <div className="bg-white border border-ndap-border rounded-2xl p-6 shadow-sm">
-        {tab === "ingest"   && <IngestTab />}
-        {tab === "elastic"  && <ElasticTab />}
-        {tab === "postgres" && <PostgresTab />}
-        {tab === "logs"     && <LogsTab />}
+        {current === "ingest"     && <IngestTab />}
+        {current === "elastic"    && <ElasticTab />}
+        {current === "postgres"   && <PostgresTab />}
+        {current === "logs"       && <LogsTab />}
+        {current === "users"      && <UsersTab me={user.username} />}
+        {current === "containers" && <ContainersTab canShare={admin} />}
+        {current === "audit"      && <AuditTab />}
       </div>
     </div>
   );

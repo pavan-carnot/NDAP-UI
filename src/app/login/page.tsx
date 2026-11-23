@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated } from "@/lib/auth";
+import { login } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,24 +13,24 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { user, refresh } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated()) router.replace("/chat");
-  }, [router]);
+    if (user) router.replace(user.must_change_password ? "/change-password" : "/chat");
+  }, [user, router]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      const ok = login(username.trim(), password);
-      if (ok) {
-        router.replace("/chat");
-      } else {
-        setError("Invalid username or password.");
-        setLoading(false);
-      }
-    }, 400);
+    try {
+      await login(username.trim(), password);
+      setPassword("");
+      await refresh();   // the effect above redirects
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed.");
+      setLoading(false);
+    }
   }
 
   return (

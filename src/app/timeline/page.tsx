@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import TimelineBars, { bucketEnd, bucketLabel } from "@/components/TimelineBars";
-import { getTimeline, TimelineInterval, TimelineResult } from "@/lib/api";
+import { getTimeline, libraryFileUrl, TimelineInterval, TimelineResult } from "@/lib/api";
 
-const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/api/docs").replace(/\/$/, "");
+const PdfPanel = lazy(() => import("@/components/PdfPanel"));
+
 const INTERVALS: TimelineInterval[] = ["year", "quarter", "month", "week", "day"];
 // Clicking a bar zooms into it at the next finer interval
 const FINER: Record<TimelineInterval, TimelineInterval> = {
@@ -13,12 +14,13 @@ const FINER: Record<TimelineInterval, TimelineInterval> = {
 };
 
 type Entity = { key: string; name: string };
+type PdfTarget = { url: string; page: number; filename: string };
 
 const inputCls = "w-full text-sm px-2.5 py-1.5 rounded-md border border-[#d1c9b8] bg-white focus:outline-none focus:ring-1 focus:ring-[#C9A227]";
 const labelCls = "block text-[10px] font-bold text-[#102C57] uppercase tracking-wide mb-1";
 
-function docHref(source: string, page: string): string {
-  return `${DOCS_BASE}/${encodeURIComponent(source)}${/^\d+$/.test(page) && source.toLowerCase().endsWith(".pdf") ? `#page=${page}` : ""}`;
+function docHref(source: string): string {
+  return libraryFileUrl(source);
 }
 
 export default function TimelinePage() {
@@ -32,6 +34,9 @@ export default function TimelinePage() {
   const [data, setData] = useState<TimelineResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdf, setPdf] = useState<PdfTarget | null>(null);
+  // Views before each bar click, so Back can step out of a zoom
+  const [zoomStack, setZoomStack] = useState<{ start: string; end: string; interval: TimelineInterval }[]>([]);
 
   // ?entity=<key>&name=<name> (from an entity dossier)
   useEffect(() => {
@@ -73,14 +78,32 @@ export default function TimelinePage() {
   }
 
   function zoomInto(date: string) {
+    setZoomStack(s => [...s, { start, end, interval }]);
     setStart(date);
     setEnd(bucketEnd(date, interval));
     setGroupBy(FINER[interval]);
   }
 
+  function zoomBack() {
+    const prev = zoomStack[zoomStack.length - 1];
+    if (!prev) return;
+    setZoomStack(zoomStack.slice(0, -1));
+    setStart(prev.start);
+    setEnd(prev.end);
+    setGroupBy(prev.interval);
+  }
+
   function clearRange() {
     setStart("");
     setEnd("");
+    setZoomStack([]);
+  }
+
+  // PDFs open in the side viewer at the cited page; other formats can't be shown inline
+  function openSource(e: React.MouseEvent, source: string, page: string) {
+    if (!source.toLowerCase().endsWith(".pdf")) return;
+    e.preventDefault();
+    setPdf({ url: docHref(source), page: /^\d+$/.test(page) ? Number(page) : 1, filename: source });
   }
 
   const hasFilters = !!(start || end || q || entity);
@@ -148,9 +171,16 @@ export default function TimelinePage() {
             <>
               <section className="bg-white rounded-lg border border-[#e2d9c8] px-5 py-4">
                 <div className="flex items-baseline justify-between gap-4 mb-3">
-                  <h3 className="text-sm font-semibold text-[#102C57]">
-                    Dated mentions per {interval}
-                    {entity && <span className="font-normal text-[#78716c]"> · {entity.name}</span>}
+                  <h3 className="text-sm font-semibold text-[#102C57] flex items-center gap-2">
+                    {zoomStack.length > 0 && (
+                      <button onClick={zoomBack}
+                              title="Go back to the previous view"
+                              className="text-xs font-medium px-2 py-0.5 rounded-md border border-[#d1c9b8] text-[#102C57] hover:bg-[#F5EDD5]">
+                        ← Back
+                      </button>
+                    )}
+                    <span>Dated mentions per {interval}
+                    {entity && <span className="font-normal text-[#78716c]"> · {entity.name}</span>}</span>
                   </h3>
                   <p className="text-xs text-[#78716c] tabular-nums">
                     {data.total} passage{data.total === 1 ? "" : "s"}
@@ -203,7 +233,7 @@ export default function TimelinePage() {
                           {h.dates.slice(0, 6).map(d => (
                             <span key={d} className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#102C57] text-white">{d}</span>
                           ))}
-                          <a href={docHref(h.source, h.page)} target="_blank" rel="noreferrer"
+                          <a href={docHref(h.source)} target="_blank" rel="noreferrer" onClick={e => openSource(e, h.source, h.page)}
                              className="text-xs text-[#102C57] hover:underline ml-1 break-all">
                             {h.source}
                           </a>
@@ -229,6 +259,14 @@ export default function TimelinePage() {
           )}
         </div>
       </main>
+
+      {pdf && (
+        <div className="hidden lg:flex flex-col w-[420px] xl:w-[480px] flex-shrink-0 border-l border-[#d6cbb0]">
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-gray-400">Loading viewer…</div>}>
+            <PdfPanel url={pdf.url} page={pdf.page} filename={pdf.filename} onClose={() => setPdf(null)} />
+          </Suspense>
+        </div>
+      )}
     </div>
   );
 }

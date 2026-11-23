@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { SidebarProvider } from "@/lib/sidebar-context";
 import { LanguageProvider } from "@/lib/language-context";
+import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: "IDS – Context-aware Conversational AI",
@@ -20,13 +21,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="h-screen overflow-hidden flex flex-col bg-ndap-bg">
-        <LanguageProvider>
-          <SidebarProvider>
-            <Header />
-            <main className="flex-1 flex flex-col overflow-hidden min-h-0">{children}</main>
-            {/* <Footer /> */}
-          </SidebarProvider>
-        </LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <SidebarProvider>
+              <Header />
+              <main className="flex-1 flex flex-col overflow-hidden min-h-0">{children}</main>
+              {/* <Footer /> */}
+            </SidebarProvider>
+          </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );

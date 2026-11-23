@@ -4,7 +4,6 @@ const API_BASE = process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app", "*.ngrok.io"],
   experimental: {
    proxyTimeout: 1800000,
   },
@@ -17,7 +16,7 @@ const nextConfig: NextConfig = {
       beforeFiles: [],
       afterFiles: [
         {
-          source: "/api/:path((?!docs/).*)*",
+          source: "/api/:path*",
           destination: `${API_BASE}/api/:path*`,
         },
         {

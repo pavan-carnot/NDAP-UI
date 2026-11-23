@@ -5,8 +5,10 @@ import dynamic from "next/dynamic";
 import CreateGraph from "@/components/CreateGraph";
 import EntityDossier from "@/components/EntityDossier";
 import {
-  getEntityGraph, getEntityTypes, getGraphData, searchEntities, EntityHit, KgGraphData,
+  canEdit, getEntityGraph, getEntityTypes, getGraphData, searchEntities, EntityHit, KgGraphData,
 } from "@/lib/api";
+import { isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import { useContainers, loadActiveContainer } from "@/lib/use-containers";
 
 const GraphComponent = dynamic(() => import("@/components/GraphComponent"), { ssr: false });
@@ -33,6 +35,9 @@ function loadSessionId(): string {
 
 export default function GraphPage() {
   const { containers, loaded: containersLoaded } = useContainers();
+  const { user } = useAuth();
+  // The entity index and ad-hoc graphs span the whole library: admins only
+  const admin = isAdmin(user);
   // Knowledge container whose graph is shown; ADHOC = the older pick-documents session
   const [containerId, setContainerId] = useState<string | null>(null);
   const [adhocId, setAdhocId] = useState<string | null>(null);
@@ -44,24 +49,33 @@ export default function GraphPage() {
 
   // ?container=<id> (from the sidebar's "Knowledge graph" action) wins over the active container
   useEffect(() => {
+    if (!user) return;
     setAdhocId(loadSessionId());
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("container");
-    const active = loadActiveContainer();
+    const active = loadActiveContainer(user.username);
     setCenter(params.get("entity"));
     setContainerId(fromUrl ?? (active && active !== "general" ? active : ADHOC));
-  }, []);
+  }, [user]);
 
   const isCorpus = containerId === CORPUS;
   const container = containers.find(c => c.session_id === containerId) ?? null;
 
-  // Fall back to the ad-hoc session if the requested container doesn't exist
+  // Fall back if the requested container doesn't exist (or isn't yours): admins to the
+  // ad-hoc session, others to their first container
   useEffect(() => {
-    if (containersLoaded && containerId && !isCorpus && !container) setContainerId(ADHOC);
-  }, [containersLoaded, containerId, isCorpus, container]);
+    if (!containersLoaded || containerId === null) return;
+    if (!admin && (isCorpus || containerId === ADHOC)) {
+      if (containers[0]) setContainerId(containers[0].session_id);
+    } else if (containerId && !isCorpus && !container) {
+      setContainerId(admin || !containers[0] ? ADHOC : containers[0].session_id);
+    }
+  }, [containersLoaded, containerId, isCorpus, container, admin, containers]);
 
-  const sessionId = containerId === null ? null : containerId || adhocId;
-  const waiting = containerId === null || (!!containerId && !isCorpus && !container);
+  const noContainers = !admin && containersLoaded && containers.length === 0;
+  const sessionId = containerId === null || noContainers ? null : containerId || adhocId;
+  const waiting = !noContainers && (containerId === null || (!!containerId && !isCorpus && !container)
+    || (!admin && (isCorpus || containerId === ADHOC)));
 
   const loadGraph = useCallback(async () => {
     if (!sessionId || waiting) return;
@@ -117,11 +131,11 @@ export default function GraphPage() {
               onChange={e => chooseContainer(e.target.value)}
               className="w-full text-xs rounded bg-white/10 text-white border border-white/20 px-2 py-1.5 focus:outline-none [&>option]:text-gray-900"
             >
-              <option value={CORPUS}>All documents (entity index)</option>
+              {admin && <option value={CORPUS}>All documents (entity index)</option>}
               {containers.map(c => (
                 <option key={c.session_id} value={c.session_id}>{c.name}</option>
               ))}
-              <option value={ADHOC}>Ad-hoc session (pick documents)</option>
+              {admin && <option value={ADHOC}>Ad-hoc session (pick documents)</option>}
             </select>
           </label>
           {containerId === ADHOC && (
@@ -133,13 +147,18 @@ export default function GraphPage() {
             </div>
           )}
         </div>
-        {container?.is_shared && (
+        {container && !canEdit(container) && (
           <p className="px-4 py-3 text-xs text-[#78716c] leading-snug">
-            Shared by {container.shared_by}. Only the owner can build this container&apos;s graph.
+            Shared by {container.shared_by} with view access. Editors and the owner can build this container&apos;s graph.
           </p>
         )}
-        {isCorpus && <EntityExplorer center={center} onCenter={centerOn} />}
-        {sessionId && !waiting && !isCorpus && !container?.is_shared && (
+        {noContainers && (
+          <p className="px-4 py-3 text-xs text-[#78716c] leading-snug">
+            You have no knowledge containers yet. Create one in Knowledge Agent, or ask an admin to share one.
+          </p>
+        )}
+        {admin && isCorpus && <EntityExplorer center={center} onCenter={centerOn} />}
+        {sessionId && !waiting && !isCorpus && (!container || canEdit(container)) && (
           <CreateGraph
             key={sessionId}
             sessionId={sessionId}
@@ -151,7 +170,9 @@ export default function GraphPage() {
       </aside>
 
       <main className="flex-1 min-w-0 min-h-0">
-        {(loading && !data) || waiting ? (
+        {noContainers ? (
+          <div className="flex items-center justify-center h-full text-sm text-[#a09070]">No knowledge containers yet.</div>
+        ) : (loading && !data) || waiting ? (
           <div className="flex items-center justify-center h-full text-sm text-[#a09070]">Loading graph…</div>
         ) : loadError ? (
           <div className="flex items-center justify-center h-full text-sm text-[#b91c1c] px-8 text-center">
@@ -182,8 +203,8 @@ export default function GraphPage() {
             <p className="text-sm">
               {isCorpus
                 ? "Entities are extracted as documents are ingested. For documents ingested earlier, run backfill_entities.py"
-                : container?.is_shared
-                ? "Its owner hasn't built one yet"
+                : container && !canEdit(container)
+                ? "Its owner or an editor hasn't built one yet"
                 : container ? "Create a graph from this container's documents on the left" : "Select documents on the left and create a graph"}
             </p>
           </div>

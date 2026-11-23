@@ -4,13 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  AlertCircle, Bookmark, ChevronRight, Eraser, Eye, FilePlus2, Folder, FolderOpen, Library,
+  AlertCircle, BadgeCheck, BadgeX, Bookmark, ChevronRight, Eraser, Eye, FilePlus2, Folder, FolderOpen, Library,
   Loader2, MessageSquare, Network, Pencil, Pin, PinOff, Plus, Share2, Trash2, Users,
 } from "lucide-react";
 import {
-  ChatSummary, deleteChat, deleteContainer, GENERAL_WORKSPACE, KnowledgeContainer, listChats,
-  removeContainerSource, renameChat, renameContainer, togglePinContainer,
+  canEdit, ChatSummary, ContainerFile, deleteChat, deleteContainer, GENERAL_WORKSPACE, isOwner, KnowledgeContainer,
+  listChats, removeContainerSource, renameChat, renameContainer, setApproval, togglePinContainer,
 } from "@/lib/api";
+import { hasPermission, isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import ActionMenu from "./ActionMenu";
 import FileIcon from "./FileIcon";
 import { ConfirmModal, RenameModal } from "./Modal";
@@ -56,6 +58,9 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
     onSelectContainer, onSelectChat, onNewChat, onChatRemoved, onContainerDeleted, onOpenFile, footer,
   } = props;
   const router = useRouter();
+  const { user } = useAuth();
+  const admin = isAdmin(user);
+  const reviewer = hasPermission(user, "reviewer");
   const [expanded, setExpanded] = useState<Set<string>>(new Set([activeContainerId]));
   const [tabs, setTabs] = useState<Record<string, Tab>>({});
   const [chats, setChats] = useState<Record<string, ChatSummary[] | undefined>>({});
@@ -89,10 +94,11 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
     if (chats[id] === undefined) loadChats(id);
   }
 
+  // Pins are per user, so shared containers can be favourites too
   const owned = containers.filter(c => !c.is_shared);
-  const shared = containers.filter(c => c.is_shared);
-  const pinned = owned.filter(c => c.is_pinned);
+  const pinned = containers.filter(c => c.is_pinned);
   const others = owned.filter(c => !c.is_pinned);
+  const shared = containers.filter(c => c.is_shared && !c.is_pinned);
 
   function containerMenu(c: KnowledgeContainer) {
     const ready = c.files.some(f => f.status === "active");
@@ -102,12 +108,11 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
       onClick: () => router.push(`/graph?container=${encodeURIComponent(c.session_id)}`),
     };
     const notesItem = { label: "Saved notes", icon: Bookmark, onClick: () => setDialog({ kind: "notes", containerId: c.session_id, name: c.name }) };
-    // Changing a shared container stays with its owner
-    if (c.is_shared) return [graphItem, notesItem];
+    // Viewers read and ask; editors also change files; owners rename and delete; only admins share
     return [
-      { label: "Share container", icon: Share2, onClick: () => setDialog({ kind: "share", containerId: c.session_id }) },
-      { label: "Add files", icon: FilePlus2, onClick: () => setDialog({ kind: "add", container: c }) },
-      { label: "Rename", icon: Pencil, onClick: () => setDialog({ kind: "renameContainer", container: c }) },
+      ...(admin ? [{ label: "Share container", icon: Share2, onClick: () => setDialog({ kind: "share", containerId: c.session_id }) }] : []),
+      ...(canEdit(c) ? [{ label: "Add files", icon: FilePlus2, onClick: () => setDialog({ kind: "add", container: c }) }] : []),
+      ...(isOwner(c) ? [{ label: "Rename", icon: Pencil, onClick: () => setDialog({ kind: "renameContainer", container: c }) }] : []),
       {
         label: c.is_pinned ? "Remove from favourites" : "Add to favourites",
         icon: c.is_pinned ? PinOff : Pin,
@@ -115,7 +120,18 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
       },
       graphItem,
       notesItem,
-      { label: "Delete container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "deleteContainer", container: c }) },
+      ...(isOwner(c) ? [{ label: "Delete container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "deleteContainer", container: c }) }] : []),
+    ];
+  }
+
+  function approvalItems(f: ContainerFile) {
+    if (!reviewer) return [];
+    const set = (status: "approved" | "not_approved" | null) => async () => { await setApproval(f.filename, status); reloadContainers(); };
+    return [
+      f.approval_status === "approved"
+        ? { label: "Clear approval", icon: BadgeX, onClick: set(null) }
+        : { label: "Mark approved", icon: BadgeCheck, onClick: set("approved") },
+      ...(f.approval_status === "not_approved" ? [] : [{ label: "Mark not approved", icon: BadgeX, onClick: set("not_approved") }]),
     ];
   }
 
@@ -196,12 +212,15 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
                     <span className="flex items-center gap-1 text-[10px] text-amber-700"><Loader2 className="w-3 h-3 animate-spin" />Indexing</span>
                   )}
                   {f.status === "failed" && <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" aria-label="Ingestion failed" />}
+                  {f.approval_status === "approved" && <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" aria-label="Approved source" />}
+                  {f.approval_status === "not_approved" && <BadgeX className="w-3.5 h-3.5 text-red-500 flex-shrink-0" aria-label="Not approved" />}
                   <span className="opacity-0 group-hover/file:opacity-100 focus-within:opacity-100">
                     <ActionMenu label="File actions" items={[
                       { label: "Open", icon: Eye, disabled: f.status !== "active", onClick: () => onOpenFile(c.session_id, f.filename) },
-                      ...(c.is_shared ? [] : [
+                      ...approvalItems(f),
+                      ...(canEdit(c) ? [
                         { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
-                      ]),
+                      ] : []),
                     ]} />
                   </span>
                 </div>
@@ -219,7 +238,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             ))}
           </ul>
         )}
-        {!c.is_shared && (
+        {canEdit(c) && (
           <button onClick={() => setDialog({ kind: "add", container: c })}
             className="w-full mt-1.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-ndap-navy bg-white border border-ndap-border rounded-md py-1 hover:border-ndap-navy/50">
             <Plus className="w-3 h-3" /> Add files
@@ -246,12 +265,16 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             {isOpen ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-[#C9A227]" /> : <Folder className="w-4 h-4 flex-shrink-0 text-[#C9A227]" />}
             <span className="min-w-0 flex flex-col">
               <span className={clsx("truncate text-[13px]", active ? "font-semibold text-gray-900" : "text-gray-800")} title={c.name}>{c.name}</span>
-              {c.shared_by && <span className="truncate text-[10px] text-gray-500" title={`Shared by ${c.shared_by}`}>from {c.shared_by}</span>}
+              {c.shared_by && (
+                <span className="truncate text-[10px] text-gray-500" title={`Owned by ${c.shared_by}; you can ${c.access === "editor" ? "edit files" : "view"}`}>
+                  from {c.shared_by} · {c.access === "editor" ? "Editor" : "Viewer"}
+                </span>
+              )}
             </span>
           </button>
-          {c.shared_with.length > 0 && (
-            <span title={`Shared with ${c.shared_with.join(", ")}`} className="flex-shrink-0">
-              <Users className="w-3 h-3 text-ndap-navy/60" aria-label={`Shared with ${c.shared_with.length} people`} />
+          {c.share_count > 0 && (
+            <span title={c.shared_with.length ? `Shared with ${c.shared_with.map(s => `${s.username} (${s.access})`).join(", ")}` : "Shared"} className="flex-shrink-0">
+              <Users className="w-3 h-3 text-ndap-navy/60" aria-label={`Shared with ${c.share_count} people`} />
             </span>
           )}
           {c.is_pinned && <Pin className="w-3 h-3 text-ndap-navy/60 flex-shrink-0" aria-label="Favourite" />}
@@ -292,8 +315,8 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
       </button>
 
       <div className="bg-white border border-ndap-border rounded-xl shadow-sm flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5">
-        {/* All documents: the whole library, with its own chats */}
-        <div className={clsx("rounded-lg", generalActive ? "bg-ndap-sky ring-1 ring-ndap-navy/20" : generalOpen && "bg-gray-50")}>
+        {/* All documents: the whole library, with its own chats (admins only) */}
+        {admin && <div className={clsx("rounded-lg", generalActive ? "bg-ndap-sky ring-1 ring-ndap-navy/20" : generalOpen && "bg-gray-50")}>
           <div className="flex items-center gap-1 pl-1 pr-2 py-1.5">
             <button onClick={() => toggleExpanded(GENERAL_WORKSPACE)} className="p-0.5 rounded text-gray-400 hover:text-gray-700" aria-label={generalOpen ? "Collapse" : "Expand"}>
               <ChevronRight className={clsx("w-3.5 h-3.5 transition-transform", generalOpen && "rotate-90")} />
@@ -304,7 +327,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             </button>
           </div>
           {generalOpen && <div className="pl-6 pr-1.5 pb-2">{chatList(GENERAL_WORKSPACE)}</div>}
-        </div>
+        </div>}
 
         {pinned.length > 0 && <SectionLabel>Favourites</SectionLabel>}
         {pinned.map(folder)}
@@ -318,13 +341,13 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
           <div className="px-3 py-4 text-center">
             <Folder className="w-6 h-6 mx-auto text-gray-300 mb-1.5" />
             <p className="text-xs text-gray-500">No containers yet</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">Group documents into a container to chat, take notes and build a graph over just those files.</p>
+            <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">Group documents into a container to chat, take notes and build a graph over just those files.{!admin && " An admin can also share containers with you."}</p>
           </div>
         ) : others.length === 0 ? (
           <p className="px-3 py-1.5 text-[11px] text-gray-400">All containers are in favourites.</p>
         ) : others.map(folder)}
 
-        {/* Only shown when someone has shared a container with this user */}
+        {/* Only shown when a container has been shared with this user */}
         {shared.length > 0 && (
           <>
             <button
@@ -333,7 +356,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
               className="w-full flex items-center gap-1 px-1.5 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-600"
             >
               <ChevronRight className={clsx("w-3 h-3 transition-transform", sharedOpen && "rotate-90")} />
-              Shared containers
+              Shared with me
               <span className="font-normal tabular-nums">{shared.length}</span>
             </button>
             {sharedOpen && shared.map(folder)}
@@ -379,7 +402,7 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             onConfirm={async () => { await deleteContainer(c.session_id); await reloadContainers(); onContainerDeleted(c.session_id); }}
             message={<>
               <p>This permanently deletes its {chats[c.session_id]?.length ?? c.chat_count} chat(s), saved notes and knowledge graph.</p>
-              {c.shared_with.length > 0 && <p className="mt-2">{c.shared_with.length} person(s) it&apos;s shared with also lose access, along with their chats and notes in it.</p>}
+              {c.share_count > 0 && <p className="mt-2">{c.share_count} person(s) it&apos;s shared with also lose access, along with their chats and notes in it.</p>}
               {uploads > 0 && <p className="mt-2">The {uploads} file(s) uploaded into this container are deleted from the server unless another container uses them.</p>}
               {c.files.length - uploads > 0 && <p className="mt-2 text-gray-500">Documents added from the library stay in the library.</p>}
             </>}

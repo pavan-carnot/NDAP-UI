@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
-import { getAuthUser, logout } from "@/lib/auth";
+import { canOpen, useAuth } from "@/lib/auth-context";
 
 const NAV_LINKS = [
   { href: "/chat",  label: "Knowledge Agent" },
@@ -52,14 +52,15 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
 
 export default function Header() {
   const path = usePathname();
-  const router = useRouter();
   const [langOpen, setLangOpen] = useState(false);
   const [fontSize, setFontSize] = useState<FontSize>("normal");
   const { language, setLanguage } = useLanguage();
   const selectedLang = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
   const langRef = useRef<HTMLDivElement>(null);
   const { sidebarOpen, setSidebarOpen } = useSidebar();
-  const authUser = getAuthUser();
+  const { user, signOut } = useAuth();
+  const authUser = user ? (user.display_name || user.username) : null;
+  const navLinks = NAV_LINKS.filter(link => canOpen(user, link.href));
 
   useEffect(() => {
     if (fontSize === "normal") {
@@ -79,7 +80,7 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  if (path === "/login") return null;
+  if (path === "/login" || path === "/change-password") return null;
 
   return (
     <header className="w-full sticky top-0 z-50 flex-shrink-0">
@@ -142,7 +143,7 @@ export default function Header() {
           )}
 
           {/* Nav links */}
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const active = path.startsWith(link.href);
             return (
               <Link
@@ -249,11 +250,12 @@ export default function Header() {
                   {authUser[0]}
                 </span>
               </div>
-              <span className="text-[12px] font-medium text-white/80 hidden sm:block">
+              <span className="text-[12px] font-medium text-white/80 hidden sm:block" title={user?.username}>
                 {authUser}
+                {user?.role === "admin" && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-[#C9A227]">Admin</span>}
               </span>
               <button
-                onClick={() => { logout(); router.replace("/login"); }}
+                onClick={signOut}
                 className="text-white/40 hover:text-red-300 transition-colors ml-1"
                 title="Sign out"
               >

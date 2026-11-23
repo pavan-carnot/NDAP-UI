@@ -14,6 +14,8 @@ import {
   getHealth,
   GENERAL_WORKSPACE,
   KnowledgeContainer,
+  containerFileUrl,
+  libraryFileUrl,
   listChats,
   StoredTurn,
   toggleNote,
@@ -26,8 +28,8 @@ import { loadActiveContainer, saveActiveContainer, useContainers } from "@/lib/u
 import type { ChatTurn, HealthStatus, Citation } from "@/lib/types";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useLanguage } from "@/lib/language-context";
-import { isAuthenticated, logout, getAuthUser } from "@/lib/auth";
-import { useRouter } from "next/navigation";
+import { isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 
 /* ── Inline citation processing ───────────────────────────────────── */
@@ -241,15 +243,15 @@ function LiveTrace({ query }: { query: string }) {
   );
 }
 
-const DOCS_BASE = (process.env.NEXT_PUBLIC_DOCS_BASE_URL ?? "/api/docs").replace(/\/$/, "");
-
-function docUrl(filename: string, page?: string | number) {
-  const base = `${DOCS_BASE}/${encodeURIComponent(filename)}`;
+// Documents open through the backend, which checks access to the container.
+// "All documents" (admins only) opens from the library.
+function docUrl(containerId: string, filename: string, page?: string | number) {
+  const base = containerId === GENERAL_WORKSPACE ? libraryFileUrl(filename) : containerFileUrl(containerId, filename);
   return page ? `${base}#page=${page}` : base;
 }
 
 /* ── Citation chip ────────────────────────────────────────────────── */
-function CitationChip({ cit, num, onOpenPdf }: { cit: Citation; num: number; onOpenPdf?: () => void }) {
+function CitationChip({ cit, num, containerId, onOpenPdf }: { cit: Citation; num: number; containerId: string; onOpenPdf?: () => void }) {
   const isPdf = cit.source.toLowerCase().endsWith(".pdf");
   const label = isPdf ? `p.${cit.page}` : `sheet ${cit.page}`;
 
@@ -268,7 +270,7 @@ function CitationChip({ cit, num, onOpenPdf }: { cit: Citation; num: number; onO
 
   return (
     <a
-      href={docUrl(cit.source, isPdf ? cit.page : undefined)}
+      href={docUrl(containerId, cit.source, isPdf ? cit.page : undefined)}
       target="_blank"
       rel="noopener noreferrer"
       className="group inline-flex items-center gap-1.5 bg-ndap-sky border border-ndap-border rounded-full px-3 py-1 text-xs text-ndap-blue font-medium hover:bg-ndap-blue hover:text-white transition-colors duration-150"
@@ -583,8 +585,9 @@ interface PdfTarget { url: string; page: number; filename: string; }
 const MAP_REQUEST_RE = /\b(show|display|visuali[sz]e|map|plot|render)\b.*\b(map|states?|chart|visual)\b|\bon (a |the )?map\b/i;
 
 /* ── Message card ─────────────────────────────────────────────────── */
-function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote, onFollowUp }: {
+function MessageCard({ turn, prevTurn, containerId, onOpenPdf, onToggleNote, onFollowUp }: {
   turn: ChatTurn;
+  containerId: string;
   prevTurn?: ChatTurn;
   onOpenPdf: (t: PdfTarget) => void;
   onToggleNote?: () => void;
@@ -678,7 +681,7 @@ function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote, onFollowUp }: {
                     return (
                       <button
                         onClick={() => cit && isRealPdf && onOpenPdf({
-                          url: `${DOCS_BASE}/${encodeURIComponent(cit.source)}`,
+                          url: docUrl(containerId, cit.source),
                           page: parseInt(cit.page) || 1,
                           filename: cit.source,
                         })}
@@ -718,8 +721,9 @@ function MessageCard({ turn, prevTurn, onOpenPdf, onToggleNote, onFollowUp }: {
                     key={i}
                     cit={c}
                     num={i + 1}
+                    containerId={containerId}
                     onOpenPdf={c.source.toLowerCase().endsWith(".pdf") ? () => onOpenPdf({
-                      url: `${DOCS_BASE}/${encodeURIComponent(c.source)}`,
+                      url: docUrl(containerId, c.source),
                       page: parseInt(c.page) || 1,
                       filename: c.source
                     }) : undefined}
@@ -807,6 +811,26 @@ function EmptyState({ onSample }: { onSample: (q: string) => void }) {
   );
 }
 
+/* ── Non-admin with no container open ─────────────────────────────── */
+function NoContainerState({ loaded, notice }: { loaded: boolean; notice: string | null }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center">
+      <Folder className="w-12 h-12 text-ndap-blue/40 mb-4" />
+      {loaded ? (
+        <>
+          <h2 className="text-gray-900 font-bold text-lg mb-1">No knowledge containers yet</h2>
+          <p className="text-gray-500 text-sm max-w-sm">
+            Create your own from the sidebar, or ask an admin to share one with you.
+          </p>
+          {notice && <p className="mt-3 text-xs text-amber-700">{notice}</p>}
+        </>
+      ) : (
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      )}
+    </div>
+  );
+}
+
 /* ── Empty state inside a knowledge container ─────────────────────── */
 function ContainerEmptyState({ container, onSample }: { container: KnowledgeContainer; onSample: (q: string) => void }) {
   const ready = container.files.filter(f => f.status === "active");
@@ -860,11 +884,33 @@ function ContainerEmptyState({ container, onSample }: { container: KnowledgeCont
   );
 }
 
+// Matches "**Follow-up Questions:**" and variants (U+2011 hyphen, "Follow up", "### …", colon outside bold).
+const FOLLOW_UP_MARKER = /^[ \t]*(?:#{1,6}[ \t]*)?\**[ \t]*follow[\s\-‐-―]*ups?[ \t]+questions?[ \t]*:?[ \t]*\**[ \t]*:?[ \t]*$/gim;
+
+/** Split follow-up questions out of an answer that still has them inline (older saved turns). */
+function splitFollowUps(answer: string): { answer: string; questions: string[] } {
+  const matches = [...(answer ?? "").matchAll(FOLLOW_UP_MARKER)];
+  const m = matches[matches.length - 1];
+  if (!m || m.index === undefined) return { answer, questions: [] };
+  const questions = answer
+    .slice(m.index + m[0].length)
+    .split("\n")
+    .map(l => l.trim().replace(/^(?:[-*•]|\d+[.)])\s*/, "").replace(/^\*+|\*+$/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return { answer: answer.slice(0, m.index).trimEnd(), questions };
+}
+
 function turnFromStored(t: StoredTurn, chatId: string): ChatTurn {
+  const stored = (t.meta as { follow_up_questions?: string[] } | undefined)?.follow_up_questions;
+  const split = stored?.length ? { answer: t.answer, questions: stored } : splitFollowUps(t.answer);
   return {
     id: t.id,
     query: t.query,
-    result: { session_id: chatId, answer: t.answer, chunks: t.chunks ?? [], context: "", meta: t.meta },
+    result: {
+      session_id: chatId, answer: split.answer, chunks: t.chunks ?? [], context: "", meta: t.meta,
+      follow_up_questions: split.questions,
+    },
     timestamp: new Date(t.created_at),
     saved: true,
     isNote: t.is_note,
@@ -901,12 +947,11 @@ export default function ChatPage() {
   const [sitrepLoading, setSitrepLoading] = useState(false);
   const { sidebarOpen } = useSidebar();
   const { language } = useLanguage();
-  const router = useRouter();
-  const authUser = getAuthUser();
-
-  useEffect(() => {
-    if (!isAuthenticated()) router.replace("/login");
-  }, [router]);
+  const { user, loading: authLoading } = useAuth();
+  const admin = isAdmin(user);
+  const username = user?.username ?? null;
+  // Non-admins can't use All documents, so with no container open they see a landing state
+  const noContainer = !admin && containerId === GENERAL_WORKSPACE;
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -924,7 +969,6 @@ export default function ChatPage() {
   const showChat = useCallback((cid: string, chId: string | null, name: string | null = null) => {
     viewRef.current += 1;
     setContainerId(cid);
-    saveActiveContainer(cid);
     setChatId(chId);
     setChatName(name);
     setTurns([]);
@@ -956,6 +1000,7 @@ export default function ChatPage() {
 
   // Switching container opens its most recent chat
   const selectContainer = useCallback(async (cid: string) => {
+    if (cid === GENERAL_WORKSPACE && !admin) { newChat(GENERAL_WORKSPACE); return; }
     if (cid !== GENERAL_WORKSPACE) touchContainer(cid).catch(() => null);
     try {
       const chats = await listChats(cid);
@@ -963,18 +1008,29 @@ export default function ChatPage() {
     } catch {
       newChat(GENERAL_WORKSPACE);
     }
-  }, [openChat, newChat]);
+  }, [openChat, newChat, admin]);
 
   useEffect(() => {
-    selectContainer(loadActiveContainer() ?? GENERAL_WORKSPACE);
-  }, [selectContainer]);
+    if (authLoading || !username) return;
+    selectContainer(loadActiveContainer(username) ?? GENERAL_WORKSPACE);
+  }, [selectContainer, authLoading, username]);
 
-  // The remembered container may have been deleted elsewhere
   useEffect(() => {
-    if (containersLoaded && !containersError && containerId !== GENERAL_WORKSPACE && !activeContainer) {
-      newChat(GENERAL_WORKSPACE);
+    if (username && (admin || containerId !== GENERAL_WORKSPACE)) saveActiveContainer(username, containerId);
+  }, [username, containerId, admin]);
+
+  // The remembered container may have been deleted or unshared elsewhere; non-admins
+  // without one open land in their first container
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!containersLoaded || containersError) return;
+    if (containerId !== GENERAL_WORKSPACE && !activeContainer) {
+      setNotice("That knowledge container is no longer available to you.");
+      if (admin || !containers[0]) newChat(GENERAL_WORKSPACE); else selectContainer(containers[0].session_id);
+    } else if (noContainer && containers[0]) {
+      selectContainer(containers[0].session_id);
     }
-  }, [containersLoaded, containersError, containerId, activeContainer, newChat]);
+  }, [containersLoaded, containersError, containerId, activeContainer, newChat, admin, noContainer, containers, selectContainer]);
 
   const toggleTurnNote = useCallback(async (turn: ChatTurn) => {
     if (!chatId || !turn.saved) return;
@@ -986,11 +1042,11 @@ export default function ChatPage() {
     }
   }, [containerId, chatId]);
 
-  const openContainerFile = useCallback((_cid: string, filename: string) => {
+  const openContainerFile = useCallback((cid: string, filename: string) => {
     if (filename.toLowerCase().endsWith(".pdf")) {
-      setPdfPanel({ url: `${DOCS_BASE}/${encodeURIComponent(filename)}`, page: 1, filename });
+      setPdfPanel({ url: docUrl(cid, filename), page: 1, filename });
     } else {
-      window.open(`${DOCS_BASE}/${encodeURIComponent(filename)}`, "_blank", "noopener");
+      window.open(docUrl(cid, filename), "_blank", "noopener");
     }
   }, []);
 
@@ -1142,7 +1198,11 @@ export default function ChatPage() {
             if (cid !== containerId || chId !== chatId) return;
             if (clearedOnly) { viewRef.current += 1; setTurns([]); } else newChat(cid);
           }}
-          onContainerDeleted={cid => { if (cid === containerId) newChat(GENERAL_WORKSPACE); }}
+          onContainerDeleted={cid => {
+            if (cid !== containerId) return;
+            const next = containers.find(c => c.session_id !== cid);
+            if (admin || !next) newChat(GENERAL_WORKSPACE); else selectContainer(next.session_id);
+          }}
           onOpenFile={openContainerFile}
           footer={
             <>
@@ -1212,7 +1272,9 @@ export default function ChatPage() {
               <Loader2 className="w-4 h-4 animate-spin" /> Loading chat…
             </div>
           ) : turns.length === 0 && !loading ? (
-            activeContainer ? <ContainerEmptyState container={activeContainer} onSample={submitQuery} /> : <EmptyState onSample={submitQuery} />
+            activeContainer ? <ContainerEmptyState container={activeContainer} onSample={submitQuery} />
+              : noContainer ? <NoContainerState loaded={containersLoaded} notice={notice} />
+              : <EmptyState onSample={submitQuery} />
           ) : (
             <div className="space-y-6 pb-4">
               {turns.map((t, i) => (
@@ -1220,6 +1282,7 @@ export default function ChatPage() {
                   key={t.id}
                   turn={t}
                   prevTurn={turns[i - 1]}
+                  containerId={containerId}
                   onOpenPdf={setPdfPanel}
                   onToggleNote={t.saved ? () => toggleTurnNote(t) : undefined}
                   onFollowUp={(q) => { setInput(q); setTimeout(() => inputRef.current?.focus(), 50); }}
@@ -1242,7 +1305,7 @@ export default function ChatPage() {
               ? `Ask about the documents in ${activeContainer.name}… (Enter to send)`
               : "Ask a question, request an email draft, or generate a report… (Enter to send)"}
             rows={2}
-            disabled={loading}
+            disabled={loading || noContainer}
             className="w-full resize-none bg-transparent px-4 pt-4 pb-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50"
           />
           <div className="flex items-center justify-between px-4 pb-3">

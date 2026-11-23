@@ -1,33 +1,56 @@
-export const STATIC_CREDENTIALS = [
-  { username: "admin@ids.gov.in", password: "IDS@2026" },
-];
+// Sign-in is checked by the backend, which keeps the session in an httpOnly cookie.
+// Nothing about the session is stored in the browser's JS-readable storage.
 
-export function login(username: string, password: string): boolean {
-  const match = STATIC_CREDENTIALS.find(
-    (c) => c.username === username && c.password === password
-  );
-  if (match) {
-    sessionStorage.setItem("ids_auth", JSON.stringify({ username: match.username }));
-    return true;
-  }
-  return false;
+export type Role = "admin" | "user";
+export type Permission = "reviewer" | "auditor";
+
+export interface AuthUser {
+  username: string;
+  display_name: string;
+  role: Role;
+  permissions: Permission[];
+  must_change_password: boolean;
 }
 
-export function logout() {
-  sessionStorage.removeItem("ids_auth");
-}
-
-export function getAuthUser(): string | null {
+async function detail(res: Response): Promise<string> {
   try {
-    const raw = sessionStorage.getItem("ids_auth");
-    if (!raw) return null;
-    const { username } = JSON.parse(raw);
-    return username ?? null;
-  } catch {
-    return null;
-  }
+    const body = await res.json();
+    if (typeof body.detail === "string") return body.detail;
+  } catch { /* not JSON */ }
+  return `HTTP ${res.status}`;
 }
 
-export function isAuthenticated(): boolean {
-  return getAuthUser() !== null;
+export async function login(username: string, password: string): Promise<AuthUser> {
+  const res = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: username.trim(), password }),
+  });
+  if (!res.ok) throw new Error(await detail(res));
+  return res.json();
 }
+
+export async function logout(): Promise<void> {
+  await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
+}
+
+// null when signed out
+export async function fetchMe(): Promise<AuthUser | null> {
+  const res = await fetch("/api/v1/auth/me", { cache: "no-store" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(await detail(res));
+  return res.json();
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch("/api/v1/auth/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  if (!res.ok) throw new Error(await detail(res));
+}
+
+export const isAdmin = (u: AuthUser | null) => u?.role === "admin";
+export const hasPermission = (u: AuthUser | null, p: Permission) =>
+  isAdmin(u) || !!u?.permissions.includes(p);
