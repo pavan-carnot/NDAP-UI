@@ -545,18 +545,41 @@ export const updateUser = (username: string, changes: Partial<Pick<UserAccount, 
 export const resetUserPassword = (username: string, password: string) =>
   send<UserAccount>(`/v1/admin/users/${enc(username)}/reset-password`, "POST", { password });
 
+export type AuditResult = "success" | "denied" | "not_found" | "rejected" | "error";
+
 export interface AuditEntry {
   id: number;
+  seq: number | null;
   actor: string | null;
+  role: "admin" | "user" | null;
   action: string;
   target_type: string | null;
   target_id: string | null;
+  result: AuditResult | null;
+  ip: string | null;
+  method: string | null;
+  route: string | null;
+  status_code: number | null;
+  duration_ms: number | null;
   detail: Record<string, unknown>;
   created_at: string;
+  entry_hash: string | null;
 }
 
-export const listAudit = (params: { actor?: string; action?: string; target_id?: string; since?: string; until?: string; limit?: number; offset?: number }) =>
-  send<{ total: number; entries: AuditEntry[] }>(`/v1/admin/audit${query(params)}`, "GET");
+export interface AuditFilters {
+  actor?: string; action?: string; target_id?: string; since?: string; until?: string;
+  result?: AuditResult; role?: "admin" | "user";
+}
+
+export const listAudit = (params: AuditFilters & { limit?: number; offset?: number }) =>
+  send<{ total: number; entries: AuditEntry[] }>(`/v1/admin/audit${query({ ...params })}`, "GET");
+
+// A plain link: the browser downloads the CSV with the session cookie
+export const auditExportUrl = (filters: AuditFilters) => `${BASE}/v1/admin/audit/export${query({ ...filters })}`;
+
+export interface ChainCheck { ok: boolean; entries: number; first_bad_seq: number | null; problem: string | null }
+
+export const verifyAuditChain = () => send<ChainCheck>("/v1/admin/audit/verify", "GET");
 
 // ── Fingerprints and chain of custody ──────────────────────────────────────
 
@@ -597,6 +620,7 @@ export interface IntegrityReport {
   duplicates: { sha256: string; filenames: string[] }[];
   last_run: (Record<string, unknown> & { at: string }) | null;
   chain: { ok: boolean; entries: number; first_bad_id: number | null; problem: string | null };
+  audit_chain: ChainCheck;
 }
 
 export const getIntegrity = () => send<IntegrityReport>("/v1/admin/integrity", "GET");

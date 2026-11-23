@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import {
-  AuditEntry, createUser, getIntegrity, IntegrityReport, runIntegrityCheck, KnowledgeContainer, listAllContainers, listAudit, listUsers, resetUserPassword,
+  AuditEntry, AuditFilters, AuditResult, auditExportUrl, ChainCheck, verifyAuditChain, createUser, getIntegrity, IntegrityReport, runIntegrityCheck, KnowledgeContainer, listAllContainers, listAudit, listUsers, resetUserPassword,
   updateUser, UserAccount,
 } from "@/lib/api";
 import ShareModal from "@/components/sidebar/ShareModal";
@@ -258,35 +258,78 @@ export function ContainersTab({ canShare }: { canShare: boolean }) {
 const PAGE = 50;
 const ACTIONS = [
   ["", "All actions"], ["auth.", "Sign-ins and passwords"], ["user.", "User changes"], ["share.", "Sharing"],
-  ["container.", "Containers"], ["file.", "Files (added, removed, viewed)"], ["query", "Questions"],
+  ["container.", "Containers"], ["file.", "Files (added, removed, viewed)"], ["query", "Questions and answers"],
+  ["export.", "Exports and downloads"], ["admin.", "Admin tools"], ["library.", "Library changes"],
   ["document.approval", "Source approvals"], ["integrity.", "Integrity alarms"], ["graph.", "Graphs"], ["report.", "Reports"],
 ] as const;
+
+const RESULTS: [AuditResult | "", string][] = [
+  ["", "Any result"], ["success", "Succeeded"], ["denied", "Denied"], ["not_found", "Not found / no access"],
+  ["rejected", "Rejected"], ["error", "Errors"],
+];
+const RESULT_TONE: Record<string, "green" | "red" | "amber" | "gray"> = {
+  success: "green", denied: "red", not_found: "amber", rejected: "amber", error: "red",
+};
+
+function ChainStatus({ check }: { check: ChainCheck | null }) {
+  if (!check) return null;
+  return check.ok ? (
+    <p className="text-xs text-emerald-700">Log intact: {check.entries} entries, hash chain verified.</p>
+  ) : (
+    <p role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+      Audit log tampering detected at entry {check.first_bad_seq ?? "?"}: {check.problem}. Compare with an exported copy or backup.
+    </p>
+  );
+}
 
 export function AuditTab() {
   const [actor, setActor] = useState("");
   const [action, setAction] = useState("");
+  const [result, setResult] = useState<AuditResult | "">("");
+  const [role, setRole] = useState<"" | "admin" | "user">("");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ total: number; entries: AuditEntry[] } | null>(null);
+  const [chain, setChain] = useState<ChainCheck | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const filters: AuditFilters = {
+    actor: actor.trim() || undefined, action: action || undefined, result: result || undefined,
+    role: role || undefined, since: since || undefined, until: until || undefined,
+  };
+  const key = JSON.stringify(filters);
 
   useEffect(() => {
     setError(null);
-    listAudit({ actor: actor.trim() || undefined, action: action || undefined, since: since || undefined,
-                until: until || undefined, limit: PAGE, offset })
-      .then(setData).catch(e => setError(errText(e)));
-  }, [actor, action, since, until, offset]);
+    listAudit({ ...JSON.parse(key), limit: PAGE, offset }).then(setData).catch(e => setError(errText(e)));
+  }, [key, offset]);
+
+  useEffect(() => { verifyAuditChain().then(setChain).catch(() => null); }, []);
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => { setOffset(0); set(v); };
+  const sel = "border border-gray-300 rounded-lg px-2 py-1.5";
 
   return (
     <div>
-      <Header title="Audit log" sub="Sign-ins, account and sharing changes, file changes and views, and questions asked." />
+      <Header title="Audit log" sub="Every change, document view, export, question and answer, and every refused or failed request. Append-only and hash-chained.">
+        <a href={auditExportUrl(filters)} download
+           className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-ndap-navy text-ndap-navy hover:bg-ndap-sky">
+          Export CSV
+        </a>
+      </Header>
+      <div className="mb-3"><ChainStatus check={chain} /></div>
       <div className="flex flex-wrap gap-2 mb-4 text-sm">
         <input value={actor} onChange={e => reset(setActor)(e.target.value)} placeholder="User" className="border border-gray-300 rounded-lg px-3 py-1.5 w-52" />
-        <select value={action} onChange={e => reset(setAction)(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5">
+        <select value={action} onChange={e => reset(setAction)(e.target.value)} className={sel} aria-label="Action">
           {ACTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select value={result} onChange={e => reset(setResult)(e.target.value as AuditResult | "")} className={sel} aria-label="Result">
+          {RESULTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select value={role} onChange={e => reset(setRole)(e.target.value as "" | "admin" | "user")} className={sel} aria-label="Role">
+          <option value="">Any role</option><option value="admin">Admins</option><option value="user">Users</option>
         </select>
         <label className="flex items-center gap-1 text-xs text-gray-600">From
           <input type="date" value={since} onChange={e => reset(setSince)(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1" />
@@ -302,21 +345,37 @@ export function AuditTab() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b">
-                  <th className="py-2 pr-3">When</th><th className="pr-3">User</th><th className="pr-3">Action</th>
-                  <th className="pr-3">Target</th><th>Details</th>
+                  <th className="py-2 pr-3">#</th><th className="pr-3">When</th><th className="pr-3">User</th><th className="pr-3">Role</th>
+                  <th className="pr-3">Action</th><th className="pr-3">Item</th><th className="pr-3">Result</th><th>From</th>
                 </tr>
               </thead>
               <tbody>
                 {data.entries.map(e => (
-                  <tr key={e.id} className="border-b last:border-0 align-top">
-                    <td className="py-1.5 pr-3 whitespace-nowrap">{fmt(e.created_at)}</td>
-                    <td className="py-1.5 pr-3">{e.actor ?? "–"}</td>
-                    <td className="py-1.5 pr-3"><Pill tone={e.action.includes("failed") ? "red" : "gray"}>{e.action}</Pill></td>
-                    <td className="py-1.5 pr-3 font-mono text-[10px] break-all">{e.target_id ?? "–"}</td>
-                    <td className="py-1.5 font-mono text-[10px] text-gray-600 break-all">
-                      {Object.keys(e.detail).length ? JSON.stringify(e.detail) : ""}
-                    </td>
-                  </tr>
+                  <Fragment key={e.id}>
+                    <tr onClick={() => setOpen(o => (o === e.id ? null : e.id))}
+                        className="border-b last:border-0 align-top cursor-pointer hover:bg-gray-50" aria-expanded={open === e.id}>
+                      <td className="py-1.5 pr-3 tabular-nums text-gray-400">{e.seq ?? ""}</td>
+                      <td className="py-1.5 pr-3 whitespace-nowrap">{fmt(e.created_at)}</td>
+                      <td className="py-1.5 pr-3">{e.actor ?? "–"}</td>
+                      <td className="py-1.5 pr-3">{e.role ?? "–"}</td>
+                      <td className="py-1.5 pr-3"><Pill tone={e.action.includes("failed") || e.action.startsWith("integrity.") ? "red" : "gray"}>{e.action}</Pill></td>
+                      <td className="py-1.5 pr-3 font-mono text-[10px] break-all">{e.target_id ?? "–"}</td>
+                      <td className="py-1.5 pr-3">{e.result ? <Pill tone={RESULT_TONE[e.result] ?? "gray"}>{e.result}{e.status_code ? ` ${e.status_code}` : ""}</Pill> : "–"}</td>
+                      <td className="py-1.5 font-mono text-[10px] text-gray-500">{e.ip ?? "–"}</td>
+                    </tr>
+                    {open === e.id && (
+                      <tr className="border-b bg-gray-50">
+                        <td />
+                        <td colSpan={7} className="py-2 pr-3 text-[11px] text-gray-700 space-y-1">
+                          {e.method && <p><b>Request:</b> {e.method} {e.route}{e.duration_ms != null ? ` · ${e.duration_ms} ms` : ""}</p>}
+                          {Object.keys(e.detail).length > 0 && (
+                            <pre className="whitespace-pre-wrap break-all font-mono text-[10px] bg-white border rounded p-2">{JSON.stringify(e.detail, null, 2)}</pre>
+                          )}
+                          {e.entry_hash && <p className="font-mono text-[10px] text-gray-400 break-all">Entry hash {e.entry_hash}</p>}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -374,8 +433,17 @@ export function IntegrityTab({ canRun }: { canRun: boolean }) {
                 {report.chain.ok ? "Intact" : "Broken"}
               </p>
               <p className="text-xs text-gray-500">Custody chain · {report.chain.entries} entries</p>
+              <p className={clsx("mt-1 text-sm font-bold", report.audit_chain.ok ? "text-emerald-700" : "text-red-600")}>
+                {report.audit_chain.ok ? "Intact" : "Broken"}
+              </p>
+              <p className="text-xs text-gray-500">Audit log · {report.audit_chain.entries} entries</p>
             </div>
           </div>
+          {!report.audit_chain.ok && (
+            <p role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              Audit log entry {report.audit_chain.first_bad_seq}: {report.audit_chain.problem}.
+            </p>
+          )}
           {!report.chain.ok && (
             <p role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
               Custody log entry {report.chain.first_bad_id}: {report.chain.problem}. Compare with the off-host backup.
