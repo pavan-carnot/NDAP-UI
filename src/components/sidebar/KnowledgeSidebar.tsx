@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   AlertCircle, BadgeCheck, BadgeX, Bookmark, ChevronRight, Eraser, Eye, FilePlus2, Folder, FolderOpen, Library,
-  Loader2, MessageSquare, Network, Pencil, Pin, PinOff, Plus, Share2, Trash2, Users,
+  Fingerprint, Loader2, MessageSquare, Network, Pencil, Pin, PinOff, Plus, Share2, ShieldAlert, Trash2, Users,
 } from "lucide-react";
 import {
   canEdit, ChatSummary, ContainerFile, deleteChat, deleteContainer, GENERAL_WORKSPACE, isOwner, KnowledgeContainer,
@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import ActionMenu from "./ActionMenu";
 import FileIcon from "./FileIcon";
 import { ConfirmModal, RenameModal } from "./Modal";
+import CustodyModal from "./CustodyModal";
 import NotesModal from "./NotesModal";
 import ShareModal from "./ShareModal";
 import SourcesModal from "./SourcesModal";
@@ -31,7 +32,8 @@ type Dialog =
   | { kind: "removeFile"; container: KnowledgeContainer; filename: string; origin: string }
   | { kind: "renameChat"; containerId: string; chat: ChatSummary }
   | { kind: "deleteChat"; containerId: string; chat: ChatSummary; clearOnly: boolean }
-  | { kind: "notes"; containerId: string; name: string };
+  | { kind: "notes"; containerId: string; name: string }
+  | { kind: "custody"; containerId: string; filename: string };
 
 export interface KnowledgeSidebarProps {
   containers: KnowledgeContainer[];
@@ -212,11 +214,17 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
                     <span className="flex items-center gap-1 text-[10px] text-amber-700"><Loader2 className="w-3 h-3 animate-spin" />Indexing</span>
                   )}
                   {f.status === "failed" && <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" aria-label="Ingestion failed" />}
+                  {(f.integrity_status === "mismatch" || f.integrity_status === "missing") && (
+                    <span title={f.integrity_status === "mismatch" ? "Changed since it was received" : "Original file missing"} className="flex-shrink-0">
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-600" aria-label={f.integrity_status === "mismatch" ? "File changed since received" : "Original missing"} />
+                    </span>
+                  )}
                   {f.approval_status === "approved" && <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" aria-label="Approved source" />}
                   {f.approval_status === "not_approved" && <BadgeX className="w-3.5 h-3.5 text-red-500 flex-shrink-0" aria-label="Not approved" />}
                   <span className="opacity-0 group-hover/file:opacity-100 focus-within:opacity-100">
                     <ActionMenu label="File actions" items={[
                       { label: "Open", icon: Eye, disabled: f.status !== "active", onClick: () => onOpenFile(c.session_id, f.filename) },
+                      { label: "Source record", icon: Fingerprint, onClick: () => setDialog({ kind: "custody", containerId: c.session_id, filename: f.filename }) },
                       ...approvalItems(f),
                       ...(canEdit(c) ? [
                         { label: "Remove from container", icon: Trash2, danger: true, onClick: () => setDialog({ kind: "removeFile", container: c, filename: f.filename, origin: f.origin }) },
@@ -448,6 +456,9 @@ export default function KnowledgeSidebar(props: KnowledgeSidebarProps) {
             ? <p>All {dialog.chat.total_messages} message(s) in “{dialog.chat.chat_name}”, including saved notes, are removed. The chat stays.</p>
             : <p>“{dialog.chat.chat_name}” and its saved notes are deleted permanently.</p>}
         />
+      )}
+      {dialog?.kind === "custody" && (
+        <CustodyModal filename={dialog.filename} containerId={dialog.containerId} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "notes" && (
         <NotesModal

@@ -92,7 +92,9 @@ export default function SourcesModal({
       const res = creating
         ? await createContainer(name, files, [...picked], useVision, replace)
         : await addSources(container.session_id, files, [...picked], useVision, replace);
-      const bad = res.details.filter(d => d.status === "rejected" || d.status === "not_found");
+      // Rejections, plus uploads whose content was already in the library (linked, not stored again)
+      const bad = res.details.filter(d => d.status === "rejected" || d.status === "not_found"
+        || (d.status === "duplicate_linked" && d.duplicate_of !== d.filename));
       onDone(res.container);
       if (bad.length) { setProblems(bad); setBusy(false); } else onClose();
     } catch (err) {
@@ -103,10 +105,12 @@ export default function SourcesModal({
 
   if (problems) {
     return (
-      <Modal title="Some files were not added" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>OK</Button>}>
+      <Modal title="Some files were not added as uploaded" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>OK</Button>}>
         <ul className="space-y-1.5 text-xs">
           {problems.map(p => (
-            <li key={p.filename}><b>{p.filename}</b>: {p.error ?? "not found in the library"}</li>
+            <li key={p.filename}><b>{p.filename}</b>: {p.status === "duplicate_linked"
+              ? <>identical content is already in the library as <b>{p.duplicate_of}</b>, so that document was added instead.</>
+              : p.error ?? "not found in the library"}</li>
           ))}
         </ul>
       </Modal>

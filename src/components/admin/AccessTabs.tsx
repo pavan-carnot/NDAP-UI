@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import {
-  AuditEntry, createUser, KnowledgeContainer, listAllContainers, listAudit, listUsers, resetUserPassword,
+  AuditEntry, createUser, getIntegrity, IntegrityReport, runIntegrityCheck, KnowledgeContainer, listAllContainers, listAudit, listUsers, resetUserPassword,
   updateUser, UserAccount,
 } from "@/lib/api";
 import ShareModal from "@/components/sidebar/ShareModal";
@@ -259,7 +259,7 @@ const PAGE = 50;
 const ACTIONS = [
   ["", "All actions"], ["auth.", "Sign-ins and passwords"], ["user.", "User changes"], ["share.", "Sharing"],
   ["container.", "Containers"], ["file.", "Files (added, removed, viewed)"], ["query", "Questions"],
-  ["document.approval", "Source approvals"], ["graph.", "Graphs"], ["report.", "Reports"],
+  ["document.approval", "Source approvals"], ["integrity.", "Integrity alarms"], ["graph.", "Graphs"], ["report.", "Reports"],
 ] as const;
 
 export function AuditTab() {
@@ -327,6 +327,97 @@ export function AuditTab() {
             <Button onClick={() => setOffset(o => o + PAGE)} disabled={offset + PAGE >= data.total}>Older</Button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/* ── Integrity (fingerprints and custody chain) ────────────────────── */
+
+export function IntegrityTab({ canRun }: { canRun: boolean }) {
+  const [report, setReport] = useState<IntegrityReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
+
+  const reload = useCallback(() => getIntegrity().then(setReport).catch(e => setError(errText(e))), []);
+  useEffect(() => { reload(); }, [reload]);
+
+  async function runNow() {
+    setError(null);
+    try {
+      await runIntegrityCheck();
+      setStarted(true);
+      setTimeout(() => { reload(); setStarted(false); }, 5000);
+    } catch (e) { setError(errText(e)); }
+  }
+
+  const c = report?.counts ?? {};
+  const last = report?.last_run;
+  return (
+    <div>
+      <Header title="Integrity" sub="Every stored original is fingerprinted (SHA-256) when received and re-checked on a schedule. The custody log is hash-chained, so an edited or deleted entry shows up here.">
+        {canRun && <Button variant="primary" onClick={runNow} disabled={started}>{started ? "Checking…" : "Check now"}</Button>}
+      </Header>
+      {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
+      {!report ? <p className="text-sm text-gray-400">Loading…</p> : (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {([["ok", "Match fingerprint", "green"], ["mismatch", "Changed", "red"], ["missing", "Missing", "red"],
+               ["unverified", "Not yet checked", "gray"]] as const).map(([k, label, tone]) => (
+              <div key={k} className="rounded-xl border border-ndap-border px-4 py-3">
+                <p className={clsx("text-2xl font-bold tabular-nums", tone === "red" && (c[k] ?? 0) > 0 ? "text-red-600" : "text-ndap-navy")}>{c[k] ?? 0}</p>
+                <p className="text-xs text-gray-500">{label}</p>
+              </div>
+            ))}
+            <div className="rounded-xl border border-ndap-border px-4 py-3">
+              <p className={clsx("text-sm font-bold", report.chain.ok ? "text-emerald-700" : "text-red-600")}>
+                {report.chain.ok ? "Intact" : "Broken"}
+              </p>
+              <p className="text-xs text-gray-500">Custody chain · {report.chain.entries} entries</p>
+            </div>
+          </div>
+          {!report.chain.ok && (
+            <p role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              Custody log entry {report.chain.first_bad_id}: {report.chain.problem}. Compare with the off-host backup.
+            </p>
+          )}
+          <p className="text-xs text-gray-500">
+            Last scheduled check: {last ? `${fmt(last.at)} (${last.actor ?? ""} · ${last.checked} files)` : "not run yet"}
+          </p>
+
+          <section>
+            <h3 className="text-sm font-semibold text-ndap-navy mb-2">Files needing attention</h3>
+            {report.problems.length === 0 ? <p className="text-sm text-gray-400">None.</p> : (
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b">
+                  <th className="py-2 pr-3">File</th><th className="pr-3">Status</th><th className="pr-3">Fingerprint</th><th>Last checked</th>
+                </tr></thead>
+                <tbody>
+                  {report.problems.map(p => (
+                    <tr key={p.filename} className="border-b last:border-0">
+                      <td className="py-1.5 pr-3 break-all">{p.filename}</td>
+                      <td className="pr-3"><Pill tone={p.integrity_status === "mismatch" || p.integrity_status === "missing" ? "red" : "gray"}>
+                        {p.integrity_status ?? "unverified"}</Pill></td>
+                      <td className="pr-3 font-mono text-[10px]">{p.sha256 ? `${p.sha256.slice(0, 16)}…` : "–"}</td>
+                      <td>{fmt(p.integrity_checked_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-ndap-navy mb-2">Same content under different names</h3>
+            {report.duplicates.length === 0 ? <p className="text-sm text-gray-400">None.</p> : (
+              <ul className="space-y-1 text-xs">
+                {report.duplicates.map(d => (
+                  <li key={d.sha256}><span className="font-mono text-[10px] text-gray-400">{d.sha256.slice(0, 12)}…</span> {d.filenames.join(", ")}</li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

@@ -16,9 +16,9 @@ import {
 import type { Document, HealthStatus, EsChunk } from "@/lib/types";
 import { hasPermission, isAdmin } from "@/lib/auth";
 import { useAuth } from "@/lib/auth-context";
-import { AuditTab, ContainersTab, UsersTab } from "@/components/admin/AccessTabs";
+import { AuditTab, ContainersTab, IntegrityTab, UsersTab } from "@/components/admin/AccessTabs";
 
-type Tab = "ingest" | "elastic" | "postgres" | "logs" | "users" | "containers" | "audit";
+type Tab = "ingest" | "elastic" | "postgres" | "logs" | "users" | "containers" | "audit" | "integrity";
 
 const PG_TABLES = [
   "documents",
@@ -600,6 +600,7 @@ export default function AdminPage() {
     ...(auditor ? [
       { id: "containers" as Tab, label: admin ? "Containers & Sharing" : "Access Report", icon: "🗂️" },
       { id: "audit" as Tab,      label: "Audit Log",    icon: "🧾" },
+      { id: "integrity" as Tab,  label: "Integrity",    icon: "🔏" },
     ] : []),
   ];
   const current = tab ?? tabs[0]?.id ?? null;
@@ -664,6 +665,7 @@ export default function AdminPage() {
         {current === "users"      && <UsersTab me={user.username} />}
         {current === "containers" && <ContainersTab canShare={admin} />}
         {current === "audit"      && <AuditTab />}
+        {current === "integrity"  && <IntegrityTab canRun={admin} />}
       </div>
     </div>
   );

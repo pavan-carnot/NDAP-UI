@@ -400,6 +400,9 @@ export interface ContainerFile {
   tags?: string[];
   doc_type?: string;
   approval_status?: "approved" | "not_approved" | null;
+  sha256?: string | null;
+  // ok: matches its fingerprint; mismatch: changed since received; missing: original gone
+  integrity_status?: "ok" | "mismatch" | "missing" | null;
 }
 
 // owner: created it (or you're an admin); editor: can add/remove files and build the graph;
@@ -475,7 +478,7 @@ export interface SavedNote {
 
 export interface SourceUploadResult {
   session_id: string;
-  details: { filename: string; status: string; error?: string }[];
+  details: { filename: string; status: string; error?: string; duplicate_of?: string }[];
   container: KnowledgeContainer;
 }
 
@@ -554,6 +557,50 @@ export interface AuditEntry {
 
 export const listAudit = (params: { actor?: string; action?: string; target_id?: string; since?: string; until?: string; limit?: number; offset?: number }) =>
   send<{ total: number; entries: AuditEntry[] }>(`/v1/admin/audit${query(params)}`, "GET");
+
+// ── Fingerprints and chain of custody ──────────────────────────────────────
+
+export interface CustodyEvent {
+  id: number;
+  sha256: string | null;
+  event: string;
+  actor: string | null;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CustodyRecord {
+  filename: string;
+  status: string;
+  sha256: string | null;
+  file_size: number | null;
+  file_type: string | null;
+  received_at: string | null;
+  received_by: string | null;
+  received_via: string | null;
+  received_into: string | null;
+  integrity_status: string | null;
+  integrity_checked_at: string | null;
+  approval_status: string | null;
+  approved_by: string | null;
+  total_chunks: number | null;
+  doc_type: string | null;
+  events: CustodyEvent[];
+}
+
+export const getCustody = (filename: string, containerId?: string) =>
+  send<CustodyRecord>(`/v1/documents/custody${query({ filename, session_id: containerId })}`, "GET");
+
+export interface IntegrityReport {
+  counts: Record<string, number>;
+  problems: { filename: string; sha256: string | null; integrity_status: string | null; integrity_checked_at: string | null }[];
+  duplicates: { sha256: string; filenames: string[] }[];
+  last_run: (Record<string, unknown> & { at: string }) | null;
+  chain: { ok: boolean; entries: number; first_bad_id: number | null; problem: string | null };
+}
+
+export const getIntegrity = () => send<IntegrityReport>("/v1/admin/integrity", "GET");
+export const runIntegrityCheck = () => send<{ status: string }>("/v1/admin/integrity/verify", "POST");
 
 export const setApproval = (filename: string, status: "approved" | "not_approved" | null) =>
   send(`/v1/documents/approval`, "PUT", { filename, status });
